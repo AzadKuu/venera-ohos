@@ -20,21 +20,32 @@ import 'components/window_frame.dart';
 import 'foundation/app.dart';
 import 'foundation/app_page_route.dart';
 import 'foundation/appdata.dart';
+import 'foundation/continuation.dart';
+import 'foundation/ohos_compat.dart';
 import 'headless.dart';
 import 'init.dart';
 
 void main(List<String> args) {
+  print("[venera] main() enter");
   if (args.contains('--headless')) {
     runHeadlessMode(args);
     return;
   }
   if (runWebViewTitleBarWidget(args)) return;
+  print("[venera] before overrideIO");
   overrideIO(() {
+    print("[venera] inside overrideIO");
     runZonedGuarded(
       () async {
+        print("[venera] before ensureInitialized");
         WidgetsFlutterBinding.ensureInitialized();
+        print("[venera] after ensureInitialized");
+        setupOhosCompatibility();
+        print("[venera] after setupOhosCompatibility, before init()");
         await init();
+        print("[venera] after init(), before runApp");
         runApp(const MyApp());
+        print("[venera] after runApp");
         if (App.isDesktop) {
           await windowManager.ensureInitialized();
           windowManager.waitUntilReadyToShow().then((_) async {
@@ -79,7 +90,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     App.registerForceRebuild(forceRebuild);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     WidgetsBinding.instance.addObserver(this);
-    checkUpdates();
+    // 应用接续：注册热启动接续推送处理器（鸿蒙，幂等）。
+    Continuation.init();
+    // 延迟到首帧后执行，避免启动时网络竞争拖慢首帧渲染
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      checkUpdates();
+      // 应用接续：冷启动时拉取待恢复的阅读位置（鸿蒙）。
+      Continuation.checkPendingContinuation();
+    });
     if (App.isMobile) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkClipboardForVeneraLink();
@@ -376,7 +394,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   MediaQuery.of(context).viewPadding.top <= 0 ||
                   MediaQuery.of(context).viewPadding.top > 200;
 
-              if (isPaddingCheckError && Platform.isAndroid) {
+              if (isPaddingCheckError && (Platform.isAndroid || App.isOhos)) {
                 widget = MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                     viewPadding: const EdgeInsets.only(top: 15, bottom: 15),

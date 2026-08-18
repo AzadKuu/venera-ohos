@@ -26,14 +26,26 @@ extension AppTranslation on String {
     return res;
   }
 
-  static late final Map<String, Map<String, String>> translations;
+  // 默认为空 map，避免 init() 失败时 .tl 访问抛 LateInitializationError
+  static Map<String, Map<String, String>> translations = {};
 
   static Future<void> init() async {
-    var data = await rootBundle.load("assets/translation.json");
-    var json = jsonDecode(utf8.decode(data.buffer.asUint8List()));
-    translations = {
-      for (var e in json.entries) e.key: Map<String, String>.from(e.value),
-    };
+    try {
+      var data = await rootBundle.load("assets/translation.json");
+      // 必须使用 offsetInBytes/lengthInBytes 切出有效数据区，
+      // 否则鸿蒙上 ByteData.offsetInBytes 非零时会读到错误数据导致 jsonDecode 失败。
+      var bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      var json = jsonDecode(utf8.decode(bytes));
+      translations = {
+        for (var e in json.entries) e.key: Map<String, String>.from(e.value),
+      };
+      print(
+        "[venera] AppTranslation.init() loaded ${translations.length} locales",
+      );
+    } catch (e, s) {
+      // 不要静默失败：打印原因，并保留空 translations 兜底，避免 UI 崩溃
+      print("[venera] AppTranslation.init() failed: $e\n$s");
+    }
   }
 
   /// Translate a string using specified comic source

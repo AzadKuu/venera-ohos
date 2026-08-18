@@ -121,6 +121,7 @@ class Appdata with Init {
     "lastSyncTime",
     "imageFavoritesDisplayType",
     "commentFontSize",
+    "enableAiSuperResolution",
   ];
 
   static const _archiveSyncFields = ["backupWebdav", "backupWebdavPath"];
@@ -281,6 +282,7 @@ class Settings with ChangeNotifier {
     'deviceId': '',
     'ignoreBadCertificate': false,
     'readerScrollSpeed': 1.0, // 0.5 - 3.0
+    'continuousMergeChapters': true, // merge chapters in continuous top-to-bottom mode
     'localFavoritesFirst': true,
     'autoCloseFavoritePanel': false,
     'showChapterComments': true, // show chapter comments in reader
@@ -291,6 +293,8 @@ class Settings with ChangeNotifier {
     'imageFavoritesDisplayType': 0, // 0=Tags, 1=Authors, 2=Comics
     'showImageFavoritesChart':
         true, // show chart in image favorites card on home page
+    'enableAiSuperResolution':
+        false, // HarmonyOS on-device AI super resolution in reader
   };
 
   operator [](String key) {

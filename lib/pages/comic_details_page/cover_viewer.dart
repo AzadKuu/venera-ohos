@@ -124,7 +124,12 @@ class _CoverViewerState extends State<_CoverViewer> {
           format: ImageByteFormat.png,
         );
         if (byteData != null) {
-          completer.complete(byteData.buffer.asUint8List());
+          completer.complete(
+            byteData.buffer.asUint8List(
+              byteData.offsetInBytes,
+              byteData.lengthInBytes,
+            ),
+          );
         }
       });
 

@@ -315,6 +315,20 @@ class _ReaderSettingsState extends State<ReaderSettings> {
             useDeviceSettings: useDeviceSpecificSettings,
           ),
         ),
+        SliverAnimatedVisibility(
+          visible:
+              appdata.settings['readerMode'] == 'continuousTopToBottom',
+          child: _SwitchSetting(
+            title: "Merge chapters (continuous scroll)".tl,
+            settingKey: 'continuousMergeChapters',
+            onChanged: () {
+              widget.onChanged?.call('continuousMergeChapters');
+            },
+            comicId: isEnabledSpecificSettings ? widget.comicId : null,
+            comicSource: isEnabledSpecificSettings ? widget.comicSource : null,
+            useDeviceSettings: useDeviceSpecificSettings,
+          ),
+        ),
         _SwitchSetting(
           title: 'Double tap to zoom'.tl,
           settingKey: 'enableDoubleTapToZoom',
@@ -362,6 +376,19 @@ class _ReaderSettingsState extends State<ReaderSettings> {
           comicSource: isEnabledSpecificSettings ? widget.comicSource : null,
           useDeviceSettings: useDeviceSpecificSettings,
         ).toSliver(),
+        if (App.isOhos)
+          _SwitchSetting(
+            title: "AI super resolution".tl,
+            subtitle: "Enhance manga images with on-device AI".tl,
+            settingKey: 'enableAiSuperResolution',
+            onChanged: () {
+              setState(() {});
+              widget.onChanged?.call('enableAiSuperResolution');
+            },
+            comicId: isEnabledSpecificSettings ? widget.comicId : null,
+            comicSource: isEnabledSpecificSettings ? widget.comicSource : null,
+            useDeviceSettings: useDeviceSpecificSettings,
+          ).toSliver(),
         if (App.isAndroid)
           _SwitchSetting(
             title: 'Turn page by volume keys'.tl,

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:venera/foundation/app.dart';
 import 'package:venera/utils/data_sync.dart';
 import 'package:venera/foundation/comic_source/comic_source.dart';
 import 'package:venera/foundation/log.dart';
@@ -21,6 +23,9 @@ Future<void> runHeadlessMode(List<String> args) async {
   }
   if (Platform.isLinux || Platform.isMacOS) {
     Directory.current = Platform.environment['HOME']!;
+  } else if (App.isOhos) {
+    Directory.current = Platform.environment['HOME'] ??
+        (await getApplicationDocumentsDirectory()).path;
   }
   // The first arg is '--headless', so we look at the next ones.
   var commandIndex = args.indexOf('--headless') + 1;

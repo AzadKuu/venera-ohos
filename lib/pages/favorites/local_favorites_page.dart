@@ -927,7 +927,13 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
                           return CheckboxListTile(
                             title: Row(
                               children: [
-                                Text(folder),
+                                Flexible(
+                                  child: Text(
+                                    folder,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                                 const SizedBox(width: 8),
                               ],
                             ),

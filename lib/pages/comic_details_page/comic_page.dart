@@ -51,6 +51,9 @@ class ComicPage extends StatefulWidget {
     this.cover,
     this.title,
     this.heroID,
+    this.initialReadEp,
+    this.initialReadPage,
+    this.initialReadGroup,
   });
 
   final String id;
@@ -62,6 +65,16 @@ class ComicPage extends StatefulWidget {
   final String? title;
 
   final int? heroID;
+
+  /// 应用接续恢复：进入阅读器的初始章节（1-based）。非 null 时数据加载
+  /// 完成后自动打开阅读器并跳转到该章节。
+  final int? initialReadEp;
+
+  /// 应用接续恢复：进入阅读器的初始页码（1-based）。
+  final int? initialReadPage;
+
+  /// 应用接续恢复：进入阅读器的初始章节组（1-based）。
+  final int? initialReadGroup;
 
   @override
   State<ComicPage> createState() => _ComicPageState();
@@ -279,6 +292,27 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
     if (comic.chapters == null) {
       isDownloaded = LocalManager().isDownloaded(comic.id, comic.comicType, 0);
     }
+    _autoReadAfterLoad();
+  }
+
+  bool _autoReadTriggered = false;
+
+  /// 应用接续恢复：数据加载完成后自动打开阅读器并跳到接续的章节/页码。
+  /// 使用 [isFirst] 语义仅在首次加载时触发（重试/刷新不再重复进入）。
+  void _autoReadAfterLoad() {
+    if (_autoReadTriggered) return;
+    final ep = widget.initialReadEp;
+    if (ep == null) return;
+    _autoReadTriggered = true;
+    // 章节列表可能尚未加载（comic.chapters 可能为空），延迟到下一帧重试一次。
+    Future.microtask(() {
+      if (!mounted) return;
+      read(
+        ep,
+        widget.initialReadPage,
+        widget.initialReadGroup,
+      );
+    });
   }
 
   Iterable<Widget> buildTitle() sync* {
@@ -481,9 +515,10 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
                 children: [
                   Icon(Icons.history, color: context.useTextColor(Colors.teal)),
                   const SizedBox(width: 8),
-                  Builder(
-                    builder: (context) {
-                      bool haveChapter = comic.chapters != null;
+                  Flexible(
+                    child: Builder(
+                      builder: (context) {
+                        bool haveChapter = comic.chapters != null;
                       var page = history!.page;
                       var ep = history!.ep;
                       var group = history!.group;
@@ -514,8 +549,9 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
                       } else {
                         text = "${"Last Reading".tl}: P$page";
                       }
-                      return Text(text);
+                      return Text(text, overflow: TextOverflow.ellipsis, maxLines: 1);
                     },
+                    ),
                   ),
                   const SizedBox(width: 4),
                 ],
@@ -791,7 +827,12 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
             format: ImageByteFormat.png,
           );
           if (byteData != null) {
-            completer.complete(byteData.buffer.asUint8List());
+            completer.complete(
+              byteData.buffer.asUint8List(
+                byteData.offsetInBytes,
+                byteData.lengthInBytes,
+              ),
+            );
           } else {
             completer.completeError(Exception('Failed to convert image'));
           }

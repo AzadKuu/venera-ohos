@@ -728,6 +728,23 @@ const Set<PointerDeviceKind> _kTouchLikeDeviceTypes = <PointerDeviceKind>{
 
 const double _kChangeChapterOffset = 160;
 
+/// 章节段：合并模式下跟踪每个章节在组合列表中的位置。
+class _MergedChapterSegment {
+  final int chapter; // 1-based 章节号
+  final String eid; // 章节 ID
+  final List<String> images; // 图片 key 列表
+  int startIndex; // 在组合列表中的 0-based 起始索引
+
+  _MergedChapterSegment({
+    required this.chapter,
+    required this.eid,
+    required this.images,
+    this.startIndex = 0,
+  });
+
+  int get endIndex => startIndex + images.length;
+}
+
 class _ContinuousMode extends StatefulWidget {
   const _ContinuousMode({super.key});
 
@@ -777,15 +794,61 @@ class _ContinuousModeState extends State<_ContinuousMode>
   bool isZoomedIn = false;
   bool isLongPressing = false;
 
+  // 合并章节模式（仅 continuousTopToBottom）
+  bool _isMergedMode = false;
+  List<_MergedChapterSegment> _mergedSegments = [];
+  bool _isLoadingNextChapter = false;
+  final Set<int> _mergedCached = {};
+
+  /// 合并模式下组合列表中的图片总数
+  int get _mergedItemCount =>
+      _mergedSegments.fold(0, (sum, s) => sum + s.images.length);
+
+  /// 合并模式下列表总项数（含首尾哨兵）
+  int get _totalMergedItems => _mergedItemCount + 2;
+
+  /// 根据 0-based 图片索引找到对应的章节段
+  _MergedChapterSegment _findSegmentForImageIndex(int imageIndex) {
+    for (var seg in _mergedSegments) {
+      if (imageIndex >= seg.startIndex && imageIndex < seg.endIndex) {
+        return seg;
+      }
+    }
+    // 兜底：返回最后一段
+    return _mergedSegments.last;
+  }
+
   @override
   void initState() {
     reader = context.reader;
     reader._imageViewController = this;
     itemPositionsListener.itemPositions.addListener(onPositionChanged);
     cached = List.filled(reader.maxPage + 2, false);
+    // 初始化合并章节模式（仅 continuousTopToBottom，有多章节，且设置开启）
+    if (reader.mode == ReaderMode.continuousTopToBottom &&
+        reader.widget.chapters != null &&
+        reader.maxChapter > 1 &&
+        appdata.settings['continuousMergeChapters'] == true) {
+      _isMergedMode = true;
+      _mergedSegments = [
+        _MergedChapterSegment(
+          chapter: reader.chapter,
+          eid: reader.eid,
+          images: reader.images!,
+          startIndex: 0,
+        ),
+      ];
+    }
     Future.delayed(
       const Duration(milliseconds: 100),
-      () => cacheImages(reader.page),
+      () {
+        if (!mounted) return;
+        if (_isMergedMode) {
+          _cacheMergedImages(reader.page - 1);
+        } else {
+          cacheImages(reader.page);
+        }
+      },
     );
     super.initState();
   }
@@ -800,6 +863,29 @@ class _ContinuousModeState extends State<_ContinuousMode>
     if (itemPositionsListener.itemPositions.value.isEmpty) {
       return;
     }
+    if (_isMergedMode) {
+      var globalIndex = itemPositionsListener.itemPositions.value.first.index;
+      // 转为 0-based 图片索引（index 0 是哨兵）
+      var imageIndex = globalIndex - 1;
+      imageIndex = imageIndex.clamp(0, _mergedItemCount - 1);
+      var segment = _findSegmentForImageIndex(imageIndex);
+      var localPage = imageIndex - segment.startIndex + 1; // 1-based
+      // 章节切换：更新 reader.chapter 和 reader.images（不触发 rebuild）
+      if (segment.chapter != reader.chapter) {
+        reader.chapter = segment.chapter;
+        reader.images = segment.images;
+        Future.microtask(() => reader.updateHistory());
+      }
+      if (localPage != reader.page) {
+        reader.setPage(localPage);
+      }
+      context.readerScaffold.update();
+      // 只加载下一章，不前插上一章（避免一次加载过多章节卡死）
+      _maybeLoadNextChapter(imageIndex);
+      // 缓存图片
+      _cacheMergedImages(imageIndex);
+      return;
+    }
     var page = itemPositionsListener.itemPositions.value.first.index;
     page = page.clamp(1, reader.maxPage);
     if (page != reader.page) {
@@ -807,6 +893,116 @@ class _ContinuousModeState extends State<_ContinuousMode>
       context.readerScaffold.update();
     }
     cacheImages(page);
+  }
+
+  /// 加载指定章节的图片列表
+  Future<List<String>> _loadChapterImages(int chapter) async {
+    var cp = reader.widget.chapters?.ids.elementAtOrNull(chapter - 1);
+    var eid = cp ?? '0';
+    var cacheKey = "loadComicPages@${reader.type.sourceKey}@${reader.cid}@$eid";
+
+    // 优先读缓存
+    var cacheFile = await CacheManager().findCache(cacheKey);
+    if (cacheFile != null) {
+      try {
+        var cacheData = await cacheFile.readAsBytes();
+        return (jsonDecode(utf8.decode(cacheData)) as List).cast<String>();
+      } catch (_) {
+        // 缓存损坏，继续走网络
+      }
+    }
+
+    // 本地下载
+    if (reader.type == ComicType.local ||
+        LocalManager().isDownloaded(
+          reader.cid,
+          reader.type,
+          chapter,
+          reader.widget.chapters,
+        )) {
+      return await LocalManager().getImages(
+        reader.cid,
+        reader.type,
+        chapter,
+      );
+    }
+
+    // 网络
+    var res = await reader.type.comicSource!.loadComicPages!(
+      reader.widget.cid,
+      cp,
+    );
+    if (res.error) {
+      throw Exception(res.errorMessage);
+    }
+    // 后台保存缓存
+    try {
+      var data = utf8.encode(jsonEncode(res.data));
+      await CacheManager().writeCache(cacheKey, data);
+    } catch (e) {
+      Log.warning("Reader", "Failed to save merged chapter cache: $e");
+    }
+    return res.data;
+  }
+
+  /// 加载并追加下一章
+  Future<void> _loadNextChapter() async {
+    if (_isLoadingNextChapter) return;
+    var lastSegment = _mergedSegments.last;
+    var nextChapter = lastSegment.chapter + 1;
+    if (nextChapter > reader.maxChapter) return;
+    _isLoadingNextChapter = true;
+    try {
+      var images = await _loadChapterImages(nextChapter);
+      if (!mounted) return;
+      var nextEid =
+          reader.widget.chapters!.ids.elementAt(nextChapter - 1);
+      var startIndex = _mergedSegments.last.endIndex;
+      setState(() {
+        _mergedSegments.add(_MergedChapterSegment(
+          chapter: nextChapter,
+          eid: nextEid,
+          images: images,
+          startIndex: startIndex,
+        ));
+      });
+    } catch (e) {
+      Log.error("Reader", "Failed to load next merged chapter: $e");
+    }
+    _isLoadingNextChapter = false;
+  }
+
+  /// 接近末尾时触发加载下一章
+  void _maybeLoadNextChapter(int imageIndex) {
+    if (!_isMergedMode || _isLoadingNextChapter) return;
+    if (_mergedSegments.isEmpty) return;
+    var lastSegment = _mergedSegments.last;
+    if (lastSegment.chapter >= reader.maxChapter) return;
+    // 距末尾 15 张以内时加载
+    if (imageIndex >=
+        lastSegment.startIndex + lastSegment.images.length - 15) {
+      _loadNextChapter();
+    }
+  }
+
+  /// 合并模式下缓存图片
+  void _cacheMergedImages(int imageIndex) {
+    for (int i = imageIndex + 1; i <= imageIndex + preCacheCount; i++) {
+      if (i < _mergedItemCount && !_mergedCached.contains(i)) {
+        var seg = _findSegmentForImageIndex(i);
+        var localIndex = i - seg.startIndex;
+        var imageKey = seg.images[localIndex];
+        if (!imageKey.startsWith("file://")) {
+          ImageDownloader.loadComicImage(
+            imageKey,
+            reader.type.comicSource?.key,
+            reader.cid,
+            seg.eid,
+          );
+        }
+        _mergedCached.add(i);
+      }
+    }
   }
 
   double? _futurePosition;
@@ -920,7 +1116,7 @@ class _ContinuousModeState extends State<_ContinuousMode>
         _scrollController = scrollController;
         _scrollController!.addListener(onScroll);
       },
-      itemCount: reader.maxPage + 2,
+      itemCount: _isMergedMode ? _totalMergedItems : reader.maxPage + 2,
       addSemanticIndexes: false,
       scrollDirection: reader.mode == ReaderMode.continuousTopToBottom
           ? Axis.vertical
@@ -932,6 +1128,52 @@ class _ContinuousModeState extends State<_ContinuousMode>
           ? const ClampingScrollPhysics()
           : const BouncingScrollPhysics(),
       itemBuilder: (context, index) {
+        if (_isMergedMode) {
+          // 合并模式：首尾哨兵
+          if (index == 0 || index == _totalMergedItems - 1) {
+            // 末尾哨兵：加载下一章时显示 loading
+            if (index == _totalMergedItems - 1 &&
+                _isLoadingNextChapter &&
+                _mergedSegments.last.chapter < reader.maxChapter) {
+              return SizedBox(
+                height: 60,
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      backgroundColor:
+                          context.colorScheme.surfaceContainerHigh,
+                    ),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox();
+          }
+          var imageIndex = index - 1; // 0-based
+          var segment = _findSegmentForImageIndex(imageIndex);
+          var localIndex = imageIndex - segment.startIndex;
+          var imageKey = segment.images[localIndex];
+          return ColoredBox(
+            color: context.colorScheme.surface,
+            child: ComicImage(
+              filterQuality: FilterQuality.medium,
+              image: ReaderImageProvider(
+                imageKey,
+                reader.type.comicSource?.key,
+                reader.cid,
+                segment.eid,
+                localIndex + 1,
+                enableResize: true,
+              ),
+              width: double.infinity,
+              fit: BoxFit.contain,
+              onInit: (state) => imageStates.add(state),
+              onDispose: (state) => imageStates.remove(state),
+            ),
+          );
+        }
         if (index == 0 || index == reader.maxPage + 1) {
           return const SizedBox();
         }
@@ -1057,6 +1299,18 @@ class _ContinuousModeState extends State<_ContinuousMode>
         if (notification is ScrollUpdateNotification &&
             (scale - 1).abs() < 0.05) {
           if (!scrollController.hasClients) return false;
+          // 合并模式下不触发 overscroll 切章
+          if (_isMergedMode) {
+            if (prepareToPrevChapter || prepareToNextChapter) {
+              jumpToPrevChapter = false;
+              jumpToNextChapter = false;
+              setState(() {
+                prepareToPrevChapter = false;
+                prepareToNextChapter = false;
+              });
+            }
+            return true;
+          }
           if (scrollController.position.pixels <=
                   scrollController.position.minScrollExtent &&
               !reader.isFirstChapterOfGroup) {
@@ -1138,6 +1392,18 @@ class _ContinuousModeState extends State<_ContinuousMode>
 
   @override
   Future<void> animateToPage(int page) {
+    if (_isMergedMode) {
+      var seg = _mergedSegments.firstWhere(
+        (s) => s.chapter == reader.chapter,
+        orElse: () => _mergedSegments.first,
+      );
+      var listIndex = seg.startIndex + (page - 1) + 1; // +1 哨兵
+      return itemScrollController.scrollTo(
+        index: listIndex,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.ease,
+      );
+    }
     return itemScrollController.scrollTo(
       index: page,
       duration: const Duration(milliseconds: 200),
@@ -1200,7 +1466,16 @@ class _ContinuousModeState extends State<_ContinuousMode>
 
   @override
   void toPage(int page) {
-    itemScrollController.jumpTo(index: page);
+    if (_isMergedMode) {
+      var seg = _mergedSegments.firstWhere(
+        (s) => s.chapter == reader.chapter,
+        orElse: () => _mergedSegments.first,
+      );
+      var listIndex = seg.startIndex + (page - 1) + 1; // +1 哨兵
+      itemScrollController.jumpTo(index: listIndex);
+    } else {
+      itemScrollController.jumpTo(index: page);
+    }
     _futurePosition = null;
   }
 
@@ -1270,11 +1545,22 @@ class _ContinuousModeState extends State<_ContinuousMode>
   Future<Uint8List?> getImageByOffset(Offset offset) async {
     var imageKey = getImageKeyByOffset(offset);
     if (imageKey == null) return null;
+    // 合并模式下，从 image state 获取正确的 eid
+    String? eid;
+    if (_isMergedMode) {
+      for (var imageState in imageStates) {
+        if ((imageState as _ComicImageState).containsPoint(offset)) {
+          eid = (imageState.widget.image as ReaderImageProvider).eid;
+          break;
+        }
+      }
+    }
+    eid ??= context.reader.eid;
     if (imageKey.startsWith("file://")) {
       return await File(imageKey.substring(7)).readAsBytes();
     } else {
       return (await CacheManager().findCache(
-        "$imageKey@${context.reader.type.sourceKey}@${context.reader.cid}@${context.reader.eid}",
+        "$imageKey@${context.reader.type.sourceKey}@${context.reader.cid}@$eid",
       ))!.readAsBytes();
     }
   }

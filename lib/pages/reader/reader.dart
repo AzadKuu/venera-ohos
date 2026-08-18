@@ -24,6 +24,7 @@ import 'package:venera/foundation/cache_manager.dart';
 import 'package:venera/foundation/comic_source/comic_source.dart';
 import 'package:venera/foundation/comic_type.dart';
 import 'package:venera/foundation/consts.dart';
+import 'package:venera/foundation/continuation.dart';
 import 'package:venera/foundation/favorites.dart';
 import 'package:venera/foundation/global_state.dart';
 import 'package:venera/foundation/history.dart';
@@ -410,6 +411,16 @@ class _ReaderState extends State<Reader>
         history!.ep = chapter;
       }
       history!.time = DateTime.now();
+      // 应用接续：翻页/切章后把当前阅读位置上报给鸿蒙侧缓存，
+      // 供系统触发流转（onContinue）时直接使用。仅在鸿蒙生效，其他平台 no-op。
+      Continuation.reportReaderState(
+        cid: cid,
+        sourceKey: type.sourceKey,
+        name: widget.name,
+        ep: history!.ep,
+        page: history!.page,
+        group: history!.group,
+      );
       _updateHistoryTimer?.cancel();
       _updateHistoryTimer = Timer(const Duration(seconds: 1), () {
         HistoryManager().addHistoryAsync(history!);

@@ -1,6 +1,6 @@
 ## 注意
 
-这是自用项目，可能会随时做激进更改，使用请慎重。
+这是鸿蒙适配版的自用项目，可能会随时做激进更改，使用请慎重。
 
 如果你从[原项目](https://github.com/venera-app/venera)迁移过来，**WebDAV 同步目录请使用新的目录，不要和原项目共用同一目录**，否则可能导致数据异常。
 
@@ -25,4 +25,3 @@ scoop install venera
 brew tap haukuen/tap
 brew install --cask venera
 ```
-

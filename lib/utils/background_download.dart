@@ -40,7 +40,7 @@ class BackgroundDownload {
   Timer? _progressTimer;
 
   /// 当前平台是否支持后台下载前台服务。目前仅 Android 支持。
-  bool get isSupported => App.isAndroid;
+  bool get isSupported => App.isAndroid && !App.isOhos;
 
   /// 将前台服务状态与当前下载队列重新同步。
   ///

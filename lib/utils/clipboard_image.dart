@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
+import 'package:venera/foundation/app.dart';
 
 Future<void> writeImageToClipboard(Uint8List imageBytes) async {
   const channel = MethodChannel("venera/clipboard");
@@ -17,6 +18,15 @@ Future<void> writeImageToClipboard(Uint8List imageBytes) async {
     image.dispose();
   } else if (Platform.isMacOS) {
     await channel.invokeMethod("writeImageToClipboard", {"data": imageBytes});
+  } else if (App.isOhos) {
+    // HarmonyOS: try MethodChannel, fallback to unsupported
+    try {
+      await channel.invokeMethod("writeImageToClipboard", {"data": imageBytes});
+    } catch (_) {
+      throw UnsupportedError(
+        "Clipboard image is not supported on this platform",
+      );
+    }
   } else {
     throw UnsupportedError("Clipboard image is not supported on this platform");
   }

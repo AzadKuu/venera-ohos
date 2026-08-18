@@ -110,7 +110,10 @@ class JsEngine with _JSEngineApi, JsUiApi, Init {
         jsInit = _jsInitCache!;
       } else {
         var buffer = await rootBundle.load("assets/init.js");
-        jsInit = buffer.buffer.asUint8List();
+        jsInit = buffer.buffer.asUint8List(
+          buffer.offsetInBytes,
+          buffer.lengthInBytes,
+        );
       }
       _engine!.evaluate(utf8.decode(jsInit), name: "<init>");
     } catch (e, s) {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:venera/components/components.dart';
@@ -884,7 +885,14 @@ class _SliverComicSourceState extends State<_SliverComicSource> {
                   size: 20,
                 ),
                 const SizedBox(width: 4),
-                Text(source.name, style: ts.s18),
+                Flexible(
+                  child: Text(
+                    source.name,
+                    style: ts.s18,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -1327,6 +1335,10 @@ class _LoginPageState extends State<_LoginPage> {
   }
 
   void loginWithWebview() async {
+    if (App.isOhos) {
+      await _loginWithWebviewOhos();
+      return;
+    }
     var url = widget.config.loginWebsite!;
     var title = '';
     bool success = false;
@@ -1374,6 +1386,77 @@ class _LoginPageState extends State<_LoginPage> {
       if (!mounted) return;
       context.pop();
     }
+  }
+
+  /// 鸿蒙专用：用 venera/webview method channel + 鸿蒙原生 Web 组件实现登录 webview。
+  /// flutter_inappwebview 无鸿蒙实现，改用 EntryAbility 注册的 venera/webview channel。
+  Future<void> _loginWithWebviewOhos() async {
+    var url = widget.config.loginWebsite!;
+    var title = '';
+    bool success = false;
+    final channel = MethodChannel('venera/webview');
+
+    Future<void> validate() async {
+      if (success) return;
+      if (widget.config.checkLoginStatus != null &&
+          widget.config.checkLoginStatus!(url, title)) {
+        try {
+          var cookieStr =
+              await channel.invokeMethod('getCookies', {'url': url}) ?? '';
+          var cookies = <io.Cookie>[];
+          for (var part in cookieStr.toString().split('; ')) {
+            if (part.isEmpty) continue;
+            var idx = part.indexOf('=');
+            if (idx > 0) {
+              cookies.add(io.Cookie(
+                part.substring(0, idx),
+                part.substring(idx + 1),
+              ));
+            }
+          }
+          var localStorageJson =
+              await channel.invokeMethod('getLocalStorage') ?? '{}';
+          var mappedLocalStorage = <String, dynamic>{};
+          try {
+            mappedLocalStorage =
+                jsonDecode(localStorageJson.toString()) as Map<String, dynamic>;
+          } catch (e) {
+            Log.error("Login", "parse localStorage failed: $e");
+          }
+          widget.source.data['_localStorage'] = mappedLocalStorage;
+          await widget.source.saveData();
+          SingleInstanceCookieJar.instance?.saveFromResponse(
+            Uri.parse(url),
+            cookies,
+          );
+          success = true;
+          widget.config.onLoginWithWebviewSuccess?.call();
+          await channel.invokeMethod('close');
+          channel.setMethodCallHandler(null);
+          if (App.mainNavigatorKey?.currentContext != null) {
+            App.mainNavigatorKey!.currentContext!.pop();
+          }
+        } catch (e, s) {
+          Log.error("Login", "ohos webview validate failed: $e", s);
+        }
+      }
+    }
+
+    channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'onNavigation':
+          url = call.arguments as String;
+          await validate();
+          break;
+        case 'onTitleChange':
+          title = call.arguments as String;
+          await validate();
+          break;
+      }
+      return null;
+    });
+
+    await channel.invokeMethod('open', {'url': url});
   }
 
   // for linux

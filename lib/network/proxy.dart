@@ -29,6 +29,14 @@ Future<String?> _getProxy() async {
   String res;
   if (App.isLinux) {
     res = _getLinuxSystemProxy() ?? "No Proxy";
+  } else if (App.isOhos) {
+    // HarmonyOS: try MethodChannel, fallback to no proxy
+    const channel = MethodChannel("venera/method_channel");
+    try {
+      res = await channel.invokeMethod("getProxy");
+    } catch (e) {
+      return null;
+    }
   } else {
     const channel = MethodChannel("venera/method_channel");
     try {

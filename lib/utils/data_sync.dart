@@ -13,6 +13,7 @@ import 'package:venera/foundation/read_later.dart';
 import 'package:venera/foundation/res.dart';
 import 'package:venera/network/app_dio.dart';
 import 'package:venera/network/cookie_jar.dart';
+import 'package:venera/network/ohos_http_adapter.dart';
 import 'package:venera/utils/data.dart';
 import 'package:venera/utils/ext.dart';
 import 'package:webdav_client/webdav_client.dart' hide File;
@@ -88,9 +89,13 @@ class WebDavConnectionTester {
       config[0],
       user: config[1],
       password: config[2],
-      adapter: RHttpAdapter(
-        enableProxy: appdata.settings['webdavProxyEnabled'] != false,
-      ),
+      adapter: App.isOhos
+          ? OhosHttpAdapter(
+              enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+            )
+          : RHttpAdapter(
+              enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+            ),
     );
     await client.readDir('/');
   }
@@ -342,9 +347,13 @@ class DataSync with ChangeNotifier {
         url,
         user: user,
         password: pass,
-        adapter: RHttpAdapter(
-          enableProxy: appdata.settings['webdavProxyEnabled'] != false,
-        ),
+        adapter: App.isOhos
+            ? OhosHttpAdapter(
+                enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              )
+            : RHttpAdapter(
+                enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              ),
       );
 
       try {
@@ -434,9 +443,13 @@ class DataSync with ChangeNotifier {
         url,
         user: user,
         password: pass,
-        adapter: RHttpAdapter(
-          enableProxy: appdata.settings['webdavProxyEnabled'] != false,
-        ),
+        adapter: App.isOhos
+            ? OhosHttpAdapter(
+                enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              )
+            : RHttpAdapter(
+                enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              ),
       );
 
       try {

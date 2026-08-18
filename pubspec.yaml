@@ -6,7 +6,6 @@ version: 1.15.0+209
 
 environment:
   sdk: '>=3.8.0 <4.0.0'
-  flutter: 3.41.4
 
 dependencies:
   flutter:
@@ -97,6 +96,23 @@ dev_dependencies:
     git:
       url: https://github.com/venera-app/flutter_to_debian.git
   archive: any
+
+dependency_overrides:
+  # 鸿蒙适配：本地修改版 flutter_qjs（ffi.dart 增加 ohos 平台分支，加载 libqjs.so）
+  flutter_qjs:
+    path: third_party/flutter_qjs
+  # 鸿蒙适配：本地修改版 sqlite3（load_library.dart 的 _defaultOpen 增加 ohos 分支，
+  # 使后台 isolate 也能加载打包的 libsqlite3.so，而不依赖主 isolate 的 overrideForAll）
+  sqlite3:
+    path: third_party/sqlite3
+  # 鸿蒙适配：本地修改版 zip_flutter（zip_dart_base.dart 增加 ohos 平台分支，
+  # 加载随 HAP 打包的 libzip_flutter.so，用于下载漫画压缩包解压）
+  zip_flutter:
+    path: third_party/zip_flutter
+  # 鸿蒙适配：本地修改版 lodepng_flutter（lodepng_flutter.dart 增加 ohos 平台分支，
+  # 加载随 HAP 打包的 liblodepng_flutter.so，用于 JS 脚本修改图片后的 encodePng）
+  lodepng_flutter:
+    path: third_party/lodepng_flutter
 
 flutter:
   uses-material-design: true

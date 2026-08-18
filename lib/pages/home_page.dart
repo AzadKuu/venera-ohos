@@ -655,6 +655,7 @@ class _ImportComicsWidgetState extends State<_ImportComicsWidget> {
                     ).paddingHorizontal(8),
                   if (!App.isIOS &&
                       !App.isMacOS &&
+                      !App.isOhos &&
                       type != 2 &&
                       type != 3 &&
                       type != 5)

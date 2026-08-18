@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'package:venera/foundation/app.dart';
 import 'package:venera/foundation/log.dart';
 import 'package:venera/foundation/sqlite_connection.dart';
 import 'package:venera/utils/ext.dart';
@@ -228,8 +228,12 @@ class SingleInstanceCookieJar extends CookieJarSql {
     if (instance != null) {
       return instance!;
     }
-    var dataPath = (await getApplicationSupportDirectory()).path;
+    // 复用 App.dataPath（App.init() 已通过 getApplicationSupportDirectory() 拿到），
+    // 避免在鸿蒙上重复调用 getApplicationSupportDirectory() 导致卡住。
+    var dataPath = App.dataPath;
+    print("[venera] createInstance: dataPath=$dataPath");
     instance = SingleInstanceCookieJar("$dataPath/cookie.db");
+    print("[venera] createInstance: cookie jar created");
     return instance!;
   }
 }

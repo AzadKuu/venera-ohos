@@ -36,25 +36,53 @@ extension _FutureInit<T> on Future<T> {
 }
 
 Future<void> init() async {
+  print("[venera] init() enter");
   await App.init().wait();
-  await SingleInstanceCookieJar.createInstance();
+  print("[venera] after App.init()");
   try {
+    await SingleInstanceCookieJar.createInstance();
+    print("[venera] after cookie jar, before Future.wait");
     var futures = [
-      Rhttp.init(),
-      App.initComponents(),
-      SAFTaskWorker().init().wait(),
-      AppTranslation.init().wait(),
-      TagsTranslation.readData().wait(),
-      JsEngine().init().wait(),
-      ComicSourceManager().init().wait(),
-      OpenCC.init(),
-      AuthStorage.init(),
+      if (!App.isOhos)
+        Rhttp.init().then((_) => print("[venera] Rhttp.init() done")).catchError(
+              (e, s) => print("[venera] Rhttp.init() failed: $e\n$s"),
+            ),
+      App.initComponents().then(
+        (_) => print("[venera] App.initComponents() done"),
+      ),
+      if (!App.isOhos)
+        SAFTaskWorker().init().wait().then(
+          (_) => print("[venera] SAFTaskWorker.init() done"),
+        ),
+      AppTranslation.init().wait().then(
+        (_) => print("[venera] AppTranslation.init() done"),
+      ),
+      TagsTranslation.readData().wait().then(
+        (_) => print("[venera] TagsTranslation.readData() done"),
+      ),
+      JsEngine().init().wait().then(
+        (_) => print("[venera] JsEngine.init() done"),
+      ),
+      ComicSourceManager().init().wait().then(
+        (_) => print("[venera] ComicSourceManager.init() done"),
+      ),
+      OpenCC.init().then((_) => print("[venera] OpenCC.init() done")),
+      AuthStorage.init().then(
+        (_) => print("[venera] AuthStorage.init() done"),
+      ),
     ];
+    print("[venera] awaiting Future.wait...");
     await Future.wait(futures);
+    print("[venera] Future.wait completed");
   } catch (e, s) {
-    Log.error("init", "$e\n$s");
+    print("[venera] init() exception: $e\n$s");
   }
-  CacheManager().setLimitSize(appdata.settings['cacheSize']);
+  try {
+    CacheManager().setLimitSize(appdata.settings['cacheSize']);
+    print("[venera] CacheManager().setLimitSize done");
+  } catch (e, s) {
+    print("[venera] CacheManager init failed: $e\n$s");
+  }
   _checkOldConfigs();
   if (App.isAndroid) {
     handleTextShare();
@@ -123,9 +151,6 @@ Future<void> _checkAppUpdates() async {
   appdata.implicitData['lastCheckUpdate'] = now;
   appdata.writeImplicitData();
   ComicSourcePage.checkComicSourceUpdate();
-  if (appdata.settings['checkUpdateOnStart']) {
-    await checkUpdateUi(false, true);
-  }
 }
 
 void checkUpdates() {

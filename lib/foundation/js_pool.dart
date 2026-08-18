@@ -20,7 +20,10 @@ class JSPool {
     if (_isInitializing) return;
     _isInitializing = true;
     var jsInitBuffer = await rootBundle.load("assets/init.js");
-    var jsInit = jsInitBuffer.buffer.asUint8List();
+    var jsInit = jsInitBuffer.buffer.asUint8List(
+      jsInitBuffer.offsetInBytes,
+      jsInitBuffer.lengthInBytes,
+    );
     for (int i = 0; i < _maxInstances; i++) {
       _instances.add(IsolateJsEngine(jsInit));
     }

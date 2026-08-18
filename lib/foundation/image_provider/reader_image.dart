@@ -2,6 +2,7 @@ import 'dart:async' show Future;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_qjs/flutter_qjs.dart';
+import 'package:venera/foundation/ai_super_resolution.dart';
 import 'package:venera/foundation/cache_manager.dart';
 import 'package:venera/foundation/js_engine.dart';
 import 'package:venera/network/images.dart';
@@ -129,6 +130,17 @@ class ReaderImageProvider
         }
       }
     }
+    // 鸿蒙端侧 AI 超分增强：开启后对原图做超分，失败则自动降级为原图。
+    // 结果不写回磁盘缓存（超分图体积大且会污染原图缓存），
+    // 由 Flutter ImageCache 做内存缓存，同一会话内翻页不会重复推理。
+    if (imageBytes != null &&
+        appdata.settings['enableAiSuperResolution'] == true &&
+        await AiSuperResolution.isAvailable) {
+      var enhanced = await AiSuperResolution.superResolve(imageBytes);
+      if (enhanced != null && enhanced.isNotEmpty) {
+        imageBytes = enhanced;
+      }
+    }
     return imageBytes!;
   }
 
@@ -138,7 +150,8 @@ class ReaderImageProvider
   }
 
   @override
-  String get key => "$imageKey@$sourceKey@$cid@$eid@$enableResize";
+  String get key =>
+      "$imageKey@$sourceKey@$cid@$eid@$enableResize@${appdata.settings['enableAiSuperResolution'] == true}";
 
   @override
   void onLoadError() {

@@ -186,7 +186,13 @@ class _DoubleLineSelectSettingsState extends State<_DoubleLineSelectSettings> {
     return ListTile(
       title: Row(
         children: [
-          Text(widget.title),
+          Flexible(
+            child: Text(
+              widget.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const SizedBox(width: 4),
           if (widget.help != null)
             Button.icon(
@@ -317,7 +323,13 @@ class _EndSelectorSelectSettingState extends State<_EndSelectorSelectSetting> {
     return ListTile(
       title: Row(
         children: [
-          Text(widget.title),
+          Flexible(
+            child: Text(
+              widget.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const SizedBox(width: 4),
           if (widget.help != null)
             Button.icon(

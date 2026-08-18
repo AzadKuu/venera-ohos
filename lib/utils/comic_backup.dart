@@ -3,6 +3,7 @@ import 'package:venera/foundation/res.dart';
 import 'package:venera/foundation/appdata.dart';
 import 'package:venera/foundation/local.dart';
 import 'package:venera/network/app_dio.dart';
+import 'package:venera/network/ohos_http_adapter.dart';
 import 'package:venera/utils/cbz.dart';
 import 'package:venera/utils/io.dart';
 import 'package:webdav_client/webdav_client.dart' hide File;
@@ -127,9 +128,13 @@ class _WebDavComicBackupOps implements ComicBackupWebDavOps {
       config.url,
       user: config.user,
       password: config.pass,
-      adapter: RHttpAdapter(
-        enableProxy: appdata.settings['webdavProxyEnabled'] != false,
-      ),
+      adapter: App.isOhos
+          ? OhosHttpAdapter(
+              enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+            )
+          : RHttpAdapter(
+              enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+            ),
     );
   }
 

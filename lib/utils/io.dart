@@ -335,6 +335,8 @@ class DirectoryPicker {
           await copyDirectoryIsolate(Directory(directory), Directory(cache));
           directory = cache;
         }
+      } else if (App.isOhos) {
+        directory = await file_selector.getDirectoryPath();
       } else {
         // ios, macos
         directory = await _methodChannel.invokeMethod<String?>(
@@ -396,6 +398,12 @@ Future<FileSelectResult?> selectFile({required List<String> ext}) async {
       );
       if (filePath == null) return null;
       file = FileSelectResult(filePath);
+    } else if (App.isOhos) {
+      var xFile = await file_selector.openFile(
+        acceptedTypeGroups: <file_selector.XTypeGroup>[typeGroup],
+      );
+      if (xFile == null) return null;
+      file = FileSelectResult(xFile.path);
     } else {
       var xFile = await file_selector.openFile(
         acceptedTypeGroups: <file_selector.XTypeGroup>[typeGroup],
@@ -458,7 +466,7 @@ Future<bool> saveFile({
       // FIX: iOS export dialog cannot show filename and save.
       final params = SaveFileDialogParams(
         sourceFilePath: file!.path,
-        fileName: App.isIOS ? filename : null,
+        fileName: (App.isIOS || App.isOhos) ? filename : null,
       );
       final result = await FlutterFileDialog.saveFile(params: params);
       return result != null;

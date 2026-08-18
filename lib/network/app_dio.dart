@@ -7,6 +7,7 @@ import 'package:rhttp/rhttp.dart' as rhttp;
 import 'package:venera/foundation/appdata.dart';
 import 'package:venera/foundation/log.dart';
 import 'package:venera/network/cache.dart';
+import 'package:venera/network/ohos_http_adapter.dart';
 import 'package:venera/network/proxy.dart';
 
 import '../foundation/app.dart';
@@ -15,7 +16,7 @@ import 'cookie_jar.dart';
 
 export 'package:dio/dio.dart';
 
-class MyLogInterceptor implements Interceptor {
+class MyLogInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     Log.error(
@@ -131,7 +132,9 @@ class MyLogInterceptor implements Interceptor {
 class AppDio with DioMixin {
   AppDio([BaseOptions? options]) {
     this.options = options ?? BaseOptions();
-    httpClientAdapter = RHttpAdapter();
+    // 鸿蒙上 rhttp 无 Rust 动态库可用（flutter_rust_bridge 无法加载），
+    // 改用基于 dart:io 的 OhosHttpAdapter。
+    httpClientAdapter = App.isOhos ? OhosHttpAdapter() : RHttpAdapter();
     if (App.isInitialized) {
       interceptors.add(CookieManagerSql(SingleInstanceCookieJar.instance!));
       interceptors.add(NetworkCacheManager());

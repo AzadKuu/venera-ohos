@@ -8,8 +8,6 @@ class AboutSettings extends StatefulWidget {
 }
 
 class _AboutSettingsState extends State<AboutSettings> {
-  bool isCheckingUpdate = false;
-
   @override
   Widget build(BuildContext context) {
     return SmoothCustomScrollView(
@@ -42,28 +40,14 @@ class _AboutSettingsState extends State<AboutSettings> {
           ],
         ).toSliver(),
         ListTile(
-          title: Text("Check for updates".tl),
-          trailing: Button.filled(
-            isLoading: isCheckingUpdate,
-            child: Text("Check".tl),
-            onPressed: () {
-              setState(() {
-                isCheckingUpdate = true;
-              });
-              checkUpdateUi().then((value) {
-                setState(() {
-                  isCheckingUpdate = false;
-                });
-              });
-            },
-          ).fixHeight(32),
-        ).toSliver(),
-        _SwitchSetting(
-          title: "Check for updates on startup".tl,
-          settingKey: "checkUpdateOnStart",
+          title: Text("Source Code".tl),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () {
+            launchUrlString("https://github.com/AzadKuu/venera-ohos");
+          },
         ).toSliver(),
         ListTile(
-          title: Text("Source Code".tl),
+          title: Text("Upstream".tl),
           trailing: const Icon(Icons.open_in_new),
           onTap: () {
             launchUrlString("https://github.com/haukuen/venera");
