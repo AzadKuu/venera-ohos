@@ -231,6 +231,8 @@ class _ReaderState extends State<Reader>
     Future.delayed(const Duration(milliseconds: 200), () {
       LocalFavoritesManager().onRead(cid, type);
     });
+    // 应用接续：进入阅读器后通知鸿蒙侧该页面支持流转，onContinue 才允许接续。
+    Continuation.setReaderActive(true);
     super.initState();
   }
 
@@ -280,6 +282,9 @@ class _ReaderState extends State<Reader>
     stopVolumeEvent();
     PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20;
     disposeReaderWindow();
+    // 应用接续：离开阅读器后通知鸿蒙侧不再支持流转，
+    // 并清空缓存的阅读状态，主页等页面不显示接续入口。
+    Continuation.setReaderActive(false);
     super.dispose();
   }
 

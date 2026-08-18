@@ -53,6 +53,14 @@ export default class EntryAbility extends FlutterAbility {
   private continueState: string | null = null;
 
   /**
+   * 应用接续：当前是否处于支持接续的页面（阅读器）。
+   * Flutter 侧进入/离开阅读器时通过 updateContinueActive 上报。
+   * onContinue 只有在该标志为 true 且 continueState 非空时才 AGREE，
+   * 避免主页等不支持接续的页面误显示接续入口。
+   */
+  private continueActive: boolean = false;
+
+  /**
    * 应用接续：目标设备侧待恢复的阅读位置（JSON 字符串）。
    * 系统通过 onContinue -> want 把源设备状态带到目标设备，onCreate/onNewWant
    * 里读取 want.parameters 中的接续数据暂存于此。Flutter 启动后通过
@@ -676,6 +684,28 @@ export default class EntryAbility extends FlutterAbility {
             result.success(null);
             break;
           }
+          case 'updateContinueActive': {
+            const active: boolean = call.argument('active');
+            ability.continueActive = active;
+            if (active) {
+              // 进入阅读器：激活任务接续，任务中心显示流转按钮
+              ability.context.setMissionContinueState(AbilityConstant.ContinueState.ACTIVE).catch(
+                (err: BusinessError) => {
+                  Log.e(TAG, "setMissionContinueState ACTIVE failed: " + JSON.stringify(err));
+                });
+            } else {
+              // 离开阅读器：注销任务接续隐藏流转按钮，并清空缓存，
+              // 避免过期的阅读位置被流转
+              ability.continueState = null;
+              ability.context.setMissionContinueState(AbilityConstant.ContinueState.INACTIVE).catch(
+                (err: BusinessError) => {
+                  Log.e(TAG, "setMissionContinueState INACTIVE failed: " + JSON.stringify(err));
+                });
+            }
+            Log.i(TAG, "continuation updateContinueActive: " + active);
+            result.success(null);
+            break;
+          }
           case 'getPendingContinueState': {
             Log.i(TAG, "continuation getPendingContinueState: " + ability.pendingContinueState);
             result.success(ability.pendingContinueState);
@@ -700,12 +730,16 @@ export default class EntryAbility extends FlutterAbility {
    * @returns AGREE（同意接续）/ REJECT（拒绝接续）
    */
   onContinue(wantParam: Record<string, Object>): AbilityConstant.OnContinueResult {
-    if (this.continueState != null && this.continueState.length > 0) {
+    // 只在阅读器激活（continueActive）且存在阅读状态时才允许流转。
+    // 否则（主页/详情页/阅读器刚打开尚未上报）拒绝接续，系统不显示流转入口。
+    if (this.continueActive &&
+        this.continueState != null &&
+        this.continueState.length > 0) {
       wantParam[EntryAbility.CONTINUE_STATE_KEY] = this.continueState;
       Log.i(TAG, "onContinue AGREE with state: " + this.continueState);
       return AbilityConstant.OnContinueResult.AGREE;
     }
-    Log.i(TAG, "onContinue REJECT (no continue state)");
+    Log.i(TAG, "onContinue REJECT (not in reader or no continue state)");
     return AbilityConstant.OnContinueResult.REJECT;
   }
 
@@ -718,6 +752,13 @@ export default class EntryAbility extends FlutterAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam) {
     this.tryReadPendingContinueState(want);
     super.onCreate(want, launchParam);
+    // 启动时默认不在阅读器：先把任务接续设为 INACTIVE，确保任务中心
+    // 不显示流转按钮。进入阅读器后 Flutter 侧 updateContinueActive 会
+    // 再切换为 ACTIVE。若省略此调用，启动后主页等页面可能仍显示流转入口。
+    this.context.setMissionContinueState(AbilityConstant.ContinueState.INACTIVE).catch(
+      (err: BusinessError) => {
+        Log.e(TAG, "setMissionContinueState INITIAL INACTIVE failed: " + JSON.stringify(err));
+      });
   }
 
   /**

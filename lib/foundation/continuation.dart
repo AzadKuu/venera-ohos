@@ -23,6 +23,27 @@ class Continuation {
 
   static bool _handlerRegistered = false;
 
+  /// 当前是否正在阅读器页面（进入/退出时由 Reader 通知鸿蒙侧）。
+  ///
+  /// 鸿蒙侧 onContinue 据此决定是否允许流转：只有阅读器激活且有阅读状态
+  /// 时才 AGREE，避免在主页等不支持接续的页面误显示接续入口。
+  static bool _readerActive = false;
+
+  /// 通知鸿蒙侧当前是否处于阅读器页面（进入/离开阅读器时调用）。
+  ///
+  /// [active] 为 true 表示阅读器激活（可流转）；为 false 表示离开阅读器，
+  /// 鸿蒙侧会同步清空缓存的阅读状态，主页等页面不再显示接续入口。
+  static void setReaderActive(bool active) {
+    if (_readerActive == active) return;
+    _readerActive = active;
+    if (!App.isOhos) return;
+    try {
+      _channel.invokeMethod<void>('updateContinueActive', {'active': active});
+    } catch (e) {
+      Log.warning("Continuation", "setReaderActive failed: $e");
+    }
+  }
+
   /// 上报当前阅读位置到鸿蒙侧缓存（源设备侧）。
   ///
   /// [cid] 漫画 id；[sourceKey] 漫画源 key；[name] 漫画名；
