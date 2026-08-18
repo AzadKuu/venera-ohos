@@ -35,11 +35,47 @@ part 'types.dart';
 class ComicSourceManager with ChangeNotifier, Init {
   final List<ComicSource> _sources = [];
 
+  /// 记录已调度但尚未执行完的源 init()（parser 通过 50ms 延迟执行，不 await）。
+  ///
+  /// 应用启动时 [doInit] 只负责解析/注册源，各源的 init() 由 parser 以
+  /// `Future.delayed` 延迟调度。若在 init() 执行完成前就调用源接口
+  /// （例如应用接续恢复跳转 loadInfo），源运行时状态（如 baseUrl）可能
+  /// 尚未就绪而报错。依赖源运行时状态的调用方应先 [waitForSourcesReady]。
+  final List<Completer<void>> _sourceInitCompleters = [];
+
   static ComicSourceManager? _instance;
 
   ComicSourceManager._create();
 
   factory ComicSourceManager() => _instance ??= ComicSourceManager._create();
+
+  /// 登记一个源的 init() 执行（parser 在调度延迟 init 时调用）。
+  ///
+  /// init 执行完成后对应 completer 自动完成并从跟踪列表移除。
+  /// init 内部抛错不会导致未处理异步异常。
+  void _trackSourceInit(Future<void> initFuture) {
+    final completer = Completer<void>();
+    _sourceInitCompleters.add(completer);
+    initFuture.whenComplete(() {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }).catchError((Object e, StackTrace s) {
+      Log.error("ComicSource", "source init failed: $e\n$s");
+    });
+  }
+
+  /// 等待所有已登记源的 init() 执行完成（含 50ms 延迟调度）。
+  ///
+  /// 循环处理：等待期间可能又有新源被解析（如 [reload]），直到当前时刻
+  /// 已登记的所有 init 全部完成。已全部完成时立即返回。
+  Future<void> waitForSourcesReady() async {
+    while (_sourceInitCompleters.isNotEmpty) {
+      final pending = List<Completer<void>>.from(_sourceInitCompleters);
+      _sourceInitCompleters.clear();
+      await Future.wait(pending.map((c) => c.future));
+    }
+  }
 
   List<ComicSource> all() => List.from(_sources);
 

@@ -170,9 +170,18 @@ class ComicSourceParser {
     await source.loadData();
 
     if (_checkExists("init")) {
-      Future.delayed(const Duration(milliseconds: 50), () {
-        JsEngine().runCode("ComicSource.sources.$_key.init()");
-      });
+      // 源 init() 通过 50ms 延迟执行，避免阻塞解析；登记到管理器跟踪，
+      // 供 ComicSourceManager.waitForSourcesReady() 等待，确保依赖源
+      // 运行时状态的调用（如应用接续恢复）不会在 init() 前执行。
+      // 注意必须 return runCode 的结果：async init()（如 jm 的
+      // refreshApiDomains 网络请求）返回 Dart Future，return 后外层
+      // Future.delayed 会 flatten 并等待其完成，waitForSourcesReady
+      // 才能真正等到源的运行时状态（如 JM.apiDomains）就绪。
+      ComicSourceManager()._trackSourceInit(
+        Future.delayed(const Duration(milliseconds: 50), () {
+          return JsEngine().runCode("ComicSource.sources.$_key.init()");
+        }),
+      );
     }
 
     return source;

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:venera/foundation/app.dart';
+import 'package:venera/foundation/comic_source/comic_source.dart';
 import 'package:venera/foundation/log.dart';
 import 'package:venera/pages/comic_details_page/comic_page.dart';
 
@@ -91,6 +92,12 @@ class Continuation {
   /// 阅读器并跳到接续的章节/页码。
   static Future<void> restoreReaderState(String stateJson) async {
     try {
+      // 等待所有漫画源完成初始化（含源脚本的 init()，parser 以 50ms
+      // 延迟调度、不 await）。否则源运行时状态（如 baseUrl）可能尚未
+      // 就绪，loadInfo 会报 "cannot read property of undefined"。
+      // 冷启动（checkPendingContinuation）与热启动（restorePending）
+      // 两条恢复路径都经过这里，统一等待。
+      await ComicSourceManager().waitForSourcesReady();
       final data = jsonDecode(stateJson) as Map<String, dynamic>;
       final cid = data['cid'] as String?;
       final sourceKey = data['sourceKey'] as String?;
