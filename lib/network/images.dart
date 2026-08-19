@@ -160,8 +160,11 @@ abstract class ImageDownloader {
     var configs = <String, dynamic>{};
     if (sourceKey != null) {
       var comicSource = ComicSource.find(sourceKey);
+      if (comicSource == null) {
+        throw "Comic source not found: $sourceKey";
+      }
       configs =
-          (await comicSource!.getImageLoadingConfig?.call(
+          (await comicSource.getImageLoadingConfig?.call(
             imageKey,
             cid,
             eid,

@@ -22,6 +22,7 @@ class ReaderImageProvider
     this.page, {
     this.enableResize = false,
     this.onLoadFailed,
+    this.enableAiSuperResolution = false,
   });
 
   final String imageKey;
@@ -38,6 +39,15 @@ class ReaderImageProvider
 
   @override
   final bool enableResize;
+
+  /// Whether AI super resolution is enabled, captured at construction time.
+  ///
+  /// This must be a constructor parameter (not read from appdata at call time)
+  /// so that [key] and [hashCode] are stable for the lifetime of the object.
+  /// If [hashCode] could change after insertion into [ImageCache], the cache's
+  /// internal [_checkCacheSize] would fail with "null check operator used on
+  /// a null value" (Flutter issue #137249).
+  final bool enableAiSuperResolution;
 
   @override
   Future<Uint8List> load(chunkEvents, checkStop) async {
@@ -134,7 +144,7 @@ class ReaderImageProvider
     // 结果不写回磁盘缓存（超分图体积大且会污染原图缓存），
     // 由 Flutter ImageCache 做内存缓存，同一会话内翻页不会重复推理。
     if (imageBytes != null &&
-        appdata.settings['enableAiSuperResolution'] == true &&
+        enableAiSuperResolution &&
         await AiSuperResolution.isAvailable) {
       var enhanced = await AiSuperResolution.superResolve(imageBytes);
       if (enhanced != null && enhanced.isNotEmpty) {
@@ -151,7 +161,10 @@ class ReaderImageProvider
 
   @override
   String get key =>
-      "$imageKey@$sourceKey@$cid@$eid@$enableResize@${appdata.settings['enableAiSuperResolution'] == true}";
+      "$imageKey@$sourceKey@$cid@$eid@$enableResize@$enableAiSuperResolution";
+
+  @override
+  String get diskCacheKey => "$imageKey@$sourceKey@$cid@$eid";
 
   @override
   void onLoadError() {

@@ -1,5 +1,5 @@
 
-import { FlutterAbility, FlutterEngine, FlutterManager, MethodChannel, MethodCall, MethodResult, Log } from '@ohos/flutter_ohos';
+import { FlutterAbility, FlutterEngine, FlutterManager, MethodChannel, MethodCall, MethodResult, BasicMessageChannel, BinaryCodec, Reply, Log } from '@ohos/flutter_ohos';
 import { GeneratedPluginRegistrant } from '../plugins/GeneratedPluginRegistrant';
 import i18n from '@ohos.i18n';
 import picker from '@ohos.file.picker';
@@ -31,6 +31,7 @@ export default class EntryAbility extends FlutterAbility {
     this.registerWebview(flutterEngine)
     this.registerUrlLauncher(flutterEngine)
     this.registerAiSuperResolution(flutterEngine)
+    this.registerAiSuperResolutionBin(flutterEngine)
     this.registerContinuation(flutterEngine)
     this.registerSmartGrip(flutterEngine)
   }
@@ -553,6 +554,41 @@ export default class EntryAbility extends FlutterAbility {
       }
     });
     Log.i(TAG, "ai_super_resolution channel registered");
+  }
+
+  /**
+   * 注册 AI 超分二进制通道（venera/ai_super_resolution_bin）。
+   *
+   * 与 registerAiSuperResolution 的 ping MethodChannel 配合：ping 走
+   * MethodChannel（低频探测），superResolve 走 BasicMessageChannel +
+   * BinaryCodec（热路径，零序列化传 ArrayBuffer，省掉 MethodChannel 对
+   * 大图片字节的 JSON 编码与中间拷贝）。
+   */
+  private registerAiSuperResolutionBin(flutterEngine: FlutterEngine): void {
+    const ability = this;
+    const messenger = flutterEngine.dartExecutor.getBinaryMessenger();
+    const channel = new BasicMessageChannel<ArrayBuffer>(
+      messenger, 'venera/ai_super_resolution_bin', BinaryCodec.INSTANCE_DIRECT
+    );
+    channel.setMessageHandler({
+      onMessage(message: ArrayBuffer, reply: Reply<ArrayBuffer>) {
+        if (message == null || message.byteLength == 0) {
+          reply.reply(new ArrayBuffer(0));
+          return;
+        }
+        ability.aiSrQueue = ability.aiSrQueue.then(async () => {
+          const out = await ability.aiSuperResolve(message);
+          // aiSuperResolve 返回 Uint8Array（覆盖整个底层 ArrayBuffer），
+          // 取 .buffer 作为零拷贝回复；失败/空结果回空 buffer，Dart 侧
+          // 据此降级为原图。
+          reply.reply(out == null ? new ArrayBuffer(0) : out.buffer);
+        }).catch((err: Error) => {
+          Log.e(TAG, "ai superResolve(bin) failed: " + JSON.stringify(err));
+          reply.reply(new ArrayBuffer(0));
+        });
+      }
+    });
+    Log.i(TAG, "ai_super_resolution_bin channel registered");
   }
 
   /**

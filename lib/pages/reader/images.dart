@@ -404,7 +404,12 @@ class _GalleryModeState extends State<_GalleryMode>
                 ),
                 fit: BoxFit.contain,
                 errorBuilder: (_, error, s, retry) {
-                  return NetworkError(message: error.toString(), retry: retry);
+                  return NetworkError(
+                    message: s != null
+                        ? "${error.toString()}\n${s.toString()}"
+                        : error.toString(),
+                    retry: retry,
+                  );
                 },
               );
             }
@@ -681,9 +686,13 @@ class _GalleryModeState extends State<_GalleryMode>
     if (imageKey.startsWith("file://")) {
       return await File(imageKey.substring(7)).readAsBytes();
     } else {
-      return (await CacheManager().findCache(
+      var cache = await CacheManager().findCache(
         "$imageKey@${context.reader.type.sourceKey}@${context.reader.cid}@${context.reader.eid}",
-      ))!.readAsBytes();
+      );
+      if (cache == null) {
+        return null;
+      }
+      return await cache.readAsBytes();
     }
   }
 
@@ -1166,6 +1175,8 @@ class _ContinuousModeState extends State<_ContinuousMode>
                 segment.eid,
                 localIndex + 1,
                 enableResize: true,
+                enableAiSuperResolution:
+                    appdata.settings['enableAiSuperResolution'] == true,
               ),
               width: double.infinity,
               fit: BoxFit.contain,
@@ -1559,9 +1570,13 @@ class _ContinuousModeState extends State<_ContinuousMode>
     if (imageKey.startsWith("file://")) {
       return await File(imageKey.substring(7)).readAsBytes();
     } else {
-      return (await CacheManager().findCache(
+      var cache = await CacheManager().findCache(
         "$imageKey@${context.reader.type.sourceKey}@${context.reader.cid}@$eid",
-      ))!.readAsBytes();
+      );
+      if (cache == null) {
+        return null;
+      }
+      return await cache.readAsBytes();
     }
   }
 
@@ -1600,6 +1615,8 @@ ImageProvider _createImageProviderFromKey(
     reader.page,
     enableResize: reader.mode.isContinuous,
     onLoadFailed: imagesState?._onPagesCacheInvalid,
+    enableAiSuperResolution:
+        appdata.settings['enableAiSuperResolution'] == true,
   );
 }
 

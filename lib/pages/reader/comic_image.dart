@@ -82,6 +82,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   bool _wasSynchronouslyLoaded = false;
   late DisposableBuildContext<State<ComicImage>> _scrollAwareContext;
   Object? _lastException;
+  StackTrace? _lastStackTrace;
   ImageStreamCompleterHandle? _completerHandle;
 
   static final Map<int, Size> _cache = {};
@@ -186,6 +187,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
         onError: (Object error, StackTrace? stackTrace) {
           setState(() {
             _lastException = error;
+            _lastStackTrace = stackTrace;
           });
           _onImageLoadError();
         },
@@ -306,7 +308,24 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
               children: [
                 Expanded(
                   child: Center(
-                    child: Text(_lastException.toString(), maxLines: 3),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_lastException.toString(), maxLines: 3),
+                        if (_lastStackTrace != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              _lastStackTrace.toString(),
+                              maxLines: 8,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: context.colorScheme.outline,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -319,6 +338,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
                       setState(() {
                         _loadingProgress = null;
                         _lastException = null;
+                        _lastStackTrace = null;
                       });
                       _resolveImage();
                     },

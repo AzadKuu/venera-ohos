@@ -112,7 +112,7 @@ abstract class BaseImageProvider<T extends BaseImageProvider<T>>
           getTargetSize: enableResize ? _getTargetSize : null,
         );
       } catch (e) {
-        await CacheManager().delete(this.key);
+        await CacheManager().delete(diskCacheKey);
         if (data.length < 2 * 1024) {
           // data is too short, it's likely that the data is text, not image
           try {
@@ -146,6 +146,11 @@ abstract class BaseImageProvider<T extends BaseImageProvider<T>>
   );
 
   String get key;
+
+  /// Disk cache key used by [CacheManager]. Defaults to [key], but subclasses
+  /// whose [key] includes extra suffixes (e.g. resize/AI flags) should override
+  /// this to return the actual key used by [CacheManager.writeCache].
+  String get diskCacheKey => key;
 
   @override
   bool operator ==(Object other) {
