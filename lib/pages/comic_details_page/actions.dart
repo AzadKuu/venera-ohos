@@ -104,6 +104,48 @@ abstract mixin class _ComicPageActions {
   ///
   /// [group] the chapter group number, start from 1
   void read([int? ep, int? page, int? group]) {
+    // 原生阅读器：鸿蒙平台 + 设置开关 + 本地漫画时，使用 ArkTS 原生阅读器。
+    if (NativeReader.isAvailable && comic.comicType == ComicType.local) {
+      _openNativeReader(ep, page, group);
+      return;
+    }
+    _openFlutterReader(ep, page, group);
+  }
+
+  /// 打开原生阅读器（ArkTS + @ohos/imageknifepro + AI 超分）。
+  void _openNativeReader([int? ep, int? page, int? group]) async {
+    final chapterEp = ep ?? 1;
+    try {
+      final images = await LocalManager().getImages(
+        comic.id,
+        comic.comicType,
+        chapterEp,
+      );
+      if (images.isEmpty) {
+        _openFlutterReader(ep, page, group);
+        return;
+      }
+      final initialPage = (page != null && page > 0) ? page - 1 : 0;
+      final enableAiSuperResolution =
+          appdata.settings['enableAiSuperResolution'] == true;
+      final opened = await NativeReader.open(
+        images: images,
+        initialPage: initialPage,
+        title: comic.title,
+        enableAiSuperResolution: enableAiSuperResolution,
+      );
+      if (!opened) {
+        // 原生阅读器打开失败，fallback 到 Flutter 阅读器
+        _openFlutterReader(ep, page, group);
+      }
+    } catch (e) {
+      Log.error("ComicPage", "native reader failed, fallback: $e");
+      _openFlutterReader(ep, page, group);
+    }
+  }
+
+  /// 打开 Flutter 阅读器（原有逻辑）。
+  void _openFlutterReader([int? ep, int? page, int? group]) {
     App.rootContext
         .to(
           () => Reader(

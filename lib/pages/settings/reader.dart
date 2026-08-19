@@ -389,6 +389,19 @@ class _ReaderSettingsState extends State<ReaderSettings> {
             comicSource: isEnabledSpecificSettings ? widget.comicSource : null,
             useDeviceSettings: useDeviceSpecificSettings,
           ).toSliver(),
+        if (App.isOhos)
+          _SwitchSetting(
+            title: "Native reader (local comics)".tl,
+            subtitle:
+                "Use native ArkTS reader with ImageKnife for local comics".tl,
+            settingKey: 'useNativeReaderForLocal',
+            onChanged: () {
+              widget.onChanged?.call('useNativeReaderForLocal');
+            },
+            comicId: isEnabledSpecificSettings ? widget.comicId : null,
+            comicSource: isEnabledSpecificSettings ? widget.comicSource : null,
+            useDeviceSettings: useDeviceSpecificSettings,
+          ).toSliver(),
         if (App.isAndroid)
           _SwitchSetting(
             title: 'Turn page by volume keys'.tl,

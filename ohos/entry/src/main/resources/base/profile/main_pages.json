@@ -1,6 +1,7 @@
 {
   "src": [
     "pages/Index",
-    "pages/WebviewPage"
+    "pages/WebviewPage",
+    "pages/NativeReader"
   ]
 }

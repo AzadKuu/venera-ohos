@@ -6,6 +6,8 @@
   "main": "",
   "author": "",
   "license": "",
-  "dependencies": {},
+  "dependencies": {
+    "@ohos/imageknifepro": "^1.0.10"
+  },
 }
 

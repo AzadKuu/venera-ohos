@@ -12,10 +12,12 @@ import 'package:venera/foundation/log.dart';
 import 'package:venera/foundation/sqlite_connection.dart';
 import 'package:venera/network/download.dart';
 import 'package:venera/pages/reader/reader.dart';
+import 'package:venera/foundation/native_reader.dart';
 import 'package:venera/utils/io.dart';
 import 'package:venera/utils/background_download.dart';
 
 import 'app.dart';
+import 'appdata.dart';
 import 'history.dart';
 
 class LocalComic with HistoryMixin implements Comic {
@@ -139,6 +141,16 @@ class LocalComic with HistoryMixin implements Comic {
         }
       }
     }
+    // 原生阅读器：鸿蒙平台 + 开关开启时，用 ArkTS 原生阅读器
+    if (NativeReader.isAvailable) {
+      _openNativeReaderForLocalComic(
+        id,
+        title,
+        history?.ep ?? firstDownloadedChapter ?? 1,
+        history?.page ?? 1,
+      );
+      return;
+    }
     App.rootContext.to(
       () => Reader(
         type: comicType,
@@ -153,6 +165,30 @@ class LocalComic with HistoryMixin implements Comic {
         tags: tags,
       ),
     );
+  }
+
+  /// 打开原生阅读器阅读本地漫画。
+  void _openNativeReaderForLocalComic(
+    String cid,
+    String title,
+    int ep,
+    int page,
+  ) async {
+    try {
+      final images = await LocalManager().getImages(cid, comicType, ep);
+      if (images.isEmpty) return;
+      final initialPage = page > 0 ? page - 1 : 0;
+      final enableAiSuperResolution =
+          appdata.settings['enableAiSuperResolution'] == true;
+      await NativeReader.open(
+        images: images,
+        initialPage: initialPage,
+        title: title,
+        enableAiSuperResolution: enableAiSuperResolution,
+      );
+    } catch (e) {
+      Log.error("LocalComic", "native reader failed: $e");
+    }
   }
 
   @override

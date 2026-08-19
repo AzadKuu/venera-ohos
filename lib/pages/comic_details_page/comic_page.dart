@@ -17,6 +17,8 @@ import 'package:venera/foundation/favorites.dart';
 import 'package:venera/foundation/history.dart';
 import 'package:venera/foundation/image_provider/cached_image.dart';
 import 'package:venera/foundation/local.dart';
+import 'package:venera/foundation/native_reader.dart';
+import 'package:venera/foundation/log.dart';
 import 'package:venera/foundation/read_later.dart';
 import 'package:venera/foundation/res.dart';
 import 'package:venera/network/download.dart';
@@ -224,6 +226,30 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
     );
   }
 
+  /// 打开原生阅读器阅读本地漫画。
+  void _openNativeReaderForLocal(
+    String cid,
+    String title,
+    int ep,
+    int page,
+  ) async {
+    try {
+      final images = await LocalManager().getImages(cid, ComicType.local, ep);
+      if (images.isEmpty) return;
+      final initialPage = page > 0 ? page - 1 : 0;
+      final enableAiSuperResolution =
+          appdata.settings['enableAiSuperResolution'] == true;
+      await NativeReader.open(
+        images: images,
+        initialPage: initialPage,
+        title: title,
+        enableAiSuperResolution: enableAiSuperResolution,
+      );
+    } catch (e) {
+      Log.error("ComicPage", "native reader for local failed: $e");
+    }
+  }
+
   @override
   Future<Res<ComicDetails>> loadData() async {
     if (widget.sourceKey == 'local') {
@@ -235,6 +261,17 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
       if (isFirst) {
         Future.microtask(() {
           if (!App.rootContext.mounted) return;
+          // 原生阅读器：鸿蒙平台 + 开关开启时，用 ArkTS 原生阅读器
+          if (NativeReader.isAvailable) {
+            _openNativeReaderForLocal(
+              widget.id,
+              localComic.title,
+              history?.ep ?? 1,
+              history?.page ?? 1,
+            );
+            App.mainNavigatorKey!.currentContext!.pop();
+            return;
+          }
           App.rootContext.to(() {
             return Reader(
               type: ComicType.local,

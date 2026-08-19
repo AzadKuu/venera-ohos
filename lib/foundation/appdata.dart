@@ -123,6 +123,7 @@ class Appdata with Init {
     "commentFontSize",
     "enableAiSuperResolution",
     "enableSmartGrip",
+    "useNativeReaderForLocal",
   ];
 
   static const _archiveSyncFields = ["backupWebdav", "backupWebdavPath"];
@@ -298,6 +299,8 @@ class Settings with ChangeNotifier {
         false, // HarmonyOS on-device AI super resolution in reader
     'enableSmartGrip':
         true, // HarmonyOS smart grip: switch sidebar side by holding hand
+    'useNativeReaderForLocal':
+        false, // use native ArkTS reader for local comics (HarmonyOS only)
   };
 
   operator [](String key) {

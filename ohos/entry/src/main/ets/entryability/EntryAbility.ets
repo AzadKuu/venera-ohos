@@ -12,9 +12,11 @@ import image from '@ohos.multimedia.image';
 import imageSuperResolution from '@hms.ai.vision.imageSuperResolution';
 import visionBase from '@hms.ai.vision.visionBase';
 import { WebviewBridge } from '../webview/WebviewBridge';
+import { AiSuperResolutionHelper } from '../utils/AiSuperResolutionHelper';
 import AbilityConstant from '@ohos.app.ability.AbilityConstant';
 import Want from '@ohos.app.ability.Want';
 import motion from '@ohos.multimodalAwareness.motion';
+import router from '@ohos.router';
 
 const TAG = "EntryAbility";
 
@@ -34,6 +36,7 @@ export default class EntryAbility extends FlutterAbility {
     this.registerAiSuperResolutionBin(flutterEngine)
     this.registerContinuation(flutterEngine)
     this.registerSmartGrip(flutterEngine)
+    this.registerNativeReader(flutterEngine)
   }
 
   /**
@@ -810,6 +813,69 @@ export default class EntryAbility extends FlutterAbility {
       // 801: 设备不支持该能力，或权限/服务异常；保持默认左侧布局
       Log.e(TAG, "smart_grip holdingHandChanged not supported: " + JSON.stringify(e));
     }
+  }
+
+  /**
+   * 注册 venera/native_reader channel，实现原生 ArkTS 阅读器。
+   *
+   * Flutter 侧在设置中开启"使用原生阅读器"且阅读本地漫画时，通过此 channel
+   * 通知鸿蒙侧打开 NativeReader 页面（router.pushUrl），传递图片路径列表。
+   * NativeReader 使用 @ohos/imageknifepro 显示图片，集成 AI 超分。
+   *
+   * 方法：
+   * - open：入参 { images: string[], initialPage: number, title: string,
+   *          enableAiSuperResolution: boolean }，打开原生阅读器页面。
+   */
+  private registerNativeReader(flutterEngine: FlutterEngine): void {
+    const messenger = flutterEngine.dartExecutor.getBinaryMessenger();
+    const channel = new MethodChannel(messenger, 'venera/native_reader');
+
+    // 原生阅读器路由参数接口
+    interface NativeReaderParams {
+      images: string[];
+      initialPage: number;
+      title: string;
+      enableAiSuperResolution: boolean;
+    }
+
+    channel.setMethodCallHandler({
+      onMethodCall(call: MethodCall, result: MethodResult) {
+        switch (call.method) {
+          case 'open': {
+            const images = call.argument('images') as string[];
+            const initialPage = call.argument('initialPage') as number;
+            const title = call.argument('title') as string;
+            const enableAiSuperResolution = call.argument('enableAiSuperResolution') as boolean;
+            Log.i(TAG, `native_reader open: ${images?.length} images, page=${initialPage}, aiSr=${enableAiSuperResolution}`);
+            if (images == null || images.length == 0) {
+              result.success(false);
+              break;
+            }
+            try {
+              const params: NativeReaderParams = {
+                images: images,
+                initialPage: initialPage ?? 0,
+                title: title ?? '',
+                enableAiSuperResolution: enableAiSuperResolution ?? false,
+              };
+              router.pushUrl({
+                url: 'pages/NativeReader',
+                params: params
+              });
+              result.success(true);
+            } catch (e) {
+              Log.e(TAG, "native_reader open failed: " + JSON.stringify(e));
+              result.success(false);
+            }
+            break;
+          }
+          default:
+            result.notImplemented();
+            break;
+        }
+      }
+    });
+    Log.i(TAG, "venera/native_reader channel registered");
   }
 
   /**
