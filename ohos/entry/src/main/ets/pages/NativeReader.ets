@@ -18,6 +18,9 @@ struct NativeReader {
   @State windowWidthVp: number = 0;
   @State windowHeightVp: number = 0;
   @State statusBarHeightVp: number = 0;
+  @State zoomScale: number = 1.0;
+  @State panOffsetX: number = 0;
+  @State panOffsetY: number = 0;
 
   private images: string[] = [];
   private title: string = '';
@@ -29,6 +32,9 @@ struct NativeReader {
   private superResolvedMaps: Map<number, image.PixelMap> = new Map();
   private superResolvedPages: Set<number> = new Set();
   private winInstance: window.Window | null = null;
+  private startZoomScale: number = 1.0;
+  private startPanOffsetX: number = 0;
+  private startPanOffsetY: number = 0;
 
   private isGallery(): boolean {
     return this.readerMode.startsWith('gallery');
@@ -125,21 +131,21 @@ struct NativeReader {
     if (this.limitImageWidth &&
         this.readerMode === 'continuousTopToBottom' &&
         this.windowHeightVp > 0 && this.windowWidthVp > 0) {
-      // 竖屏（高>宽）时图片直接撑满宽度，无需限制
-      // 仅在横屏/近方形屏（如折叠屏外屏）时按高度 70% 限制宽度
-      if (this.windowHeightVp > this.windowWidthVp) {
-        return this.windowWidthVp;
+      // 仅在横屏/近方形屏（宽>=高）时按高度 70% 计算限制宽度
+      // 竖屏时返回 0 表示不限制，由 getContinuousImageWidth 走 '100%' 自适应
+      if (this.windowHeightVp <= this.windowWidthVp) {
+        return this.windowHeightVp * 0.7;
       }
-      return this.windowHeightVp * 0.7;
     }
-    return this.windowWidthVp;
+    return 0;
   }
 
   private getContinuousImageWidth(): string | number {
     if (this.limitImageWidth &&
         this.readerMode === 'continuousTopToBottom') {
       const w = this.getEffectiveWidth();
-      if (w > 0) return w;
+      // 只在窗口宽度大于限制宽度时启用限制，否则自适应撑满
+      if (w > 0 && this.windowWidthVp > w) return w;
     }
     return '100%';
   }
@@ -219,24 +225,65 @@ struct NativeReader {
   @Builder
   ContinuousMode() {
     if (this.isVertical()) {
-      Scroll(this.scroller) {
-        Column() {
-          ForEach(this.pageOptions, (opt: ImageKnifeOption, index: number) => {
-            ImageKnifeView({ imageKnifeOption: opt, adaptable: true })
+      Stack() {
+        Scroll(this.scroller) {
+          Column() {
+            ForEach(this.pageOptions, (opt: ImageKnifeOption, index: number) => {
+              Stack() {
+                ImageKnifeView({ imageKnifeOption: opt, adaptable: true })
+                  .width('100%')
+                  .backgroundColor('#000000')
+              }
               .width(this.getContinuousImageWidth())
-              .backgroundColor('#000000')
               .onClick(() => {
                 this.showUI = !this.showUI;
               })
-          }, (opt: ImageKnifeOption, index: number) => index.toString())
+            }, (opt: ImageKnifeOption, index: number) => index.toString())
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
         }
         .width('100%')
-        .alignItems(HorizontalAlign.Center)
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .scrollable(this.zoomScale <= 1.0 ? ScrollDirection.Vertical : ScrollDirection.None)
       }
       .width('100%')
       .height('100%')
-      .scrollBar(BarState.Off)
-      .scrollable(ScrollDirection.Vertical)
+      .scale({ x: this.zoomScale, y: this.zoomScale })
+      .translate({ x: this.panOffsetX, y: this.panOffsetY })
+      .gesture(
+        PinchGesture({ fingers: 2 })
+          .onActionStart(() => {
+            this.startZoomScale = this.zoomScale;
+          })
+          .onActionUpdate((e: GestureEvent) => {
+            let newScale = this.startZoomScale * e.scale;
+            if (newScale < 1.0) newScale = 1.0;
+            if (newScale > 4.0) newScale = 4.0;
+            this.zoomScale = newScale;
+          })
+          .onActionEnd(() => {
+            if (this.zoomScale <= 1.05) {
+              this.zoomScale = 1.0;
+              this.panOffsetX = 0;
+              this.panOffsetY = 0;
+            }
+          })
+      )
+      .parallelGesture(
+        PanGesture({ fingers: 1, distance: 10 })
+          .onActionStart(() => {
+            this.startPanOffsetX = this.panOffsetX;
+            this.startPanOffsetY = this.panOffsetY;
+          })
+          .onActionUpdate((e: GestureEvent) => {
+            if (this.zoomScale > 1.0) {
+              this.panOffsetX = this.startPanOffsetX + e.offsetX / this.zoomScale;
+              this.panOffsetY = this.startPanOffsetY + e.offsetY / this.zoomScale;
+            }
+          })
+      )
     } else {
       List({ scroller: this.scroller }) {
         ForEach(this.pageOptions, (opt: ImageKnifeOption, index: number) => {
