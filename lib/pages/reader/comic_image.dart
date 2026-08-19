@@ -434,25 +434,53 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
           );
           return result;
         } else {
-          // build progress
+          // build progress — 区分下载中 / AI 超分中
+          // 约定：expectedTotalBytes = 0 表示 AI 超分阶段
+          final isSuperResolving =
+              _loadingProgress != null &&
+              _loadingProgress!.expectedTotalBytes == 0;
+          final hasDownloadProgress =
+              _loadingProgress != null &&
+              _loadingProgress!.expectedTotalBytes != null &&
+              _loadingProgress!.expectedTotalBytes! > 0;
+
           return SizedBox(
             width: width,
             height: height,
             child: Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  backgroundColor: context.colorScheme.surfaceContainer,
-                  value:
-                      (_loadingProgress != null &&
-                          _loadingProgress!.expectedTotalBytes != null &&
-                          _loadingProgress!.expectedTotalBytes! != 0)
-                      ? _loadingProgress!.cumulativeBytesLoaded /
-                            _loadingProgress!.expectedTotalBytes!
-                      : 0,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      // 超分用琥珀色，下载用主题色
+                      color: isSuperResolving
+                          ? Colors.amber
+                          : null,
+                      backgroundColor: context.colorScheme.surfaceContainer,
+                      // 超分进度不确定（null），下载有进度值
+                      value: isSuperResolving
+                          ? null
+                          : hasDownloadProgress
+                          ? _loadingProgress!.cumulativeBytesLoaded /
+                                _loadingProgress!.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isSuperResolving ? "AI 超分" : "加载中",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isSuperResolving
+                          ? Colors.amber
+                          : context.colorScheme.outline,
+                    ),
+                  ),
+                ],
               ),
             ),
           );

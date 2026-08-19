@@ -146,6 +146,13 @@ class ReaderImageProvider
     if (imageBytes != null &&
         enableAiSuperResolution &&
         await AiSuperResolution.isAvailable) {
+      // 通知 UI 进入超分阶段（expectedTotalBytes = 0 为约定标记）
+      chunkEvents.add(
+        const ImageChunkEvent(
+          cumulativeBytesLoaded: 0,
+          expectedTotalBytes: 0,
+        ),
+      );
       var enhanced = await AiSuperResolution.superResolve(imageBytes);
       if (enhanced != null && enhanced.isNotEmpty) {
         imageBytes = enhanced;

@@ -626,11 +626,21 @@ export default class EntryAbility extends FlutterAbility {
     try {
       const source = image.createImageSource(buffer);
       pixelMap = await source.createPixelMap();
-      Log.i(TAG, "aiSuperResolve STEP=decode ok size=" +
-        pixelMap.getImageInfoSync().size.width + "x" + pixelMap.getImageInfoSync().size.height);
     } catch (e) {
       Log.e(TAG, "aiSuperResolve error STEP=decode: " + this.describeError(e));
       return null;
+    }
+
+    // STEP 2b: 大图片跳过超分。
+    // 端侧 AI 超分主要针对低分辨率图片（< 1200px），对大图做超分
+    // 既无视觉收益又浪费 CPU/内存，直接返回 null 让 Dart 侧用原图。
+    try {
+      const info = pixelMap.getImageInfoSync();
+      if (info.size.width >= 1200 || info.size.height >= 1600) {
+        return null;
+      }
+    } catch (e) {
+      // 尺寸检查失败不阻断流程，继续做超分
     }
 
     // STEP 3: 构造 Request
@@ -641,7 +651,6 @@ export default class EntryAbility extends FlutterAbility {
       request = {
         inputData: { pixelMap: pixelMap }
       } as visionBase.Request;
-      Log.i(TAG, "aiSuperResolve STEP=newRequest ok");
     } catch (e) {
       Log.e(TAG, "aiSuperResolve error STEP=newRequest: " + this.describeError(e));
       return null;
@@ -650,9 +659,7 @@ export default class EntryAbility extends FlutterAbility {
     // STEP 4: AI 超分推理
     let response: imageSuperResolution.ISPResponse;
     try {
-      Log.i(TAG, "aiSuperResolve STEP=process begin");
       response = await this.aiSrAnalyzer.process(request);
-      Log.i(TAG, "aiSuperResolve STEP=process ok");
     } catch (e) {
       Log.e(TAG, "aiSuperResolve error STEP=process: " + this.describeError(e));
       return null;
@@ -661,9 +668,6 @@ export default class EntryAbility extends FlutterAbility {
     // STEP 5: 编码为 JPEG
     try {
       const info = response.pixelMap.getImageInfoSync();
-      Log.i(TAG, "aiSuperResolve STEP=pack begin size=" +
-        info.size.width + "x" + info.size.height +
-        " pixelFormat=" + info.pixelFormat);
       // 超分返回的 PixelMap 格式特殊（JPEG 编码器无法直接编码为 SkBitmap，
       // 会报 62980119 Failed to encode the image）。先把像素读出来，
       // 转成标准 RGBA_8888 PixelMap 再打包。
@@ -680,11 +684,14 @@ export default class EntryAbility extends FlutterAbility {
       const packer = image.createImagePacker();
       const option: image.PackingOption = {
         format: 'image/jpeg',
-        quality: 80,
+        quality: 72,
         bufferSize: 100 * 1024 * 1024
       };
       const outBuffer = await packer.packing(stdPixelMap, option);
-      Log.i(TAG, "aiSuperResolve STEP=pack ok bytes=" + outBuffer.byteLength);
+      // 释放中间资源
+      packer.release();
+      response.pixelMap.release();
+      pixelMap.release();
       return new Uint8Array(outBuffer);
     } catch (e) {
       Log.e(TAG, "aiSuperResolve error STEP=pack: " + this.describeError(e));

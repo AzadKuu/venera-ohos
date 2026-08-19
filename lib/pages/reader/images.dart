@@ -426,6 +426,13 @@ class _GalleryModeState extends State<_GalleryMode>
         },
         pageController: controller,
         loadingBuilder: (context, event) {
+          // 约定：expectedTotalBytes = 0 表示 AI 超分阶段
+          final isSuperResolving =
+              event != null && event.expectedTotalBytes == 0;
+          final hasDownloadProgress =
+              event != null &&
+              event.expectedTotalBytes != null &&
+              event.expectedTotalBytes! > 0;
           return PhotoView.customChild(
             childSize: MediaQuery.of(context).size,
             initialScale: PhotoViewComputedScale.contained,
@@ -435,15 +442,34 @@ class _GalleryModeState extends State<_GalleryMode>
               color: context.colorScheme.surface,
             ),
             child: Center(
-              child: SizedBox(
-                width: 20.0,
-                height: 20.0,
-                child: CircularProgressIndicator(
-                  backgroundColor: context.colorScheme.surfaceContainerHigh,
-                  value: event == null || event.expectedTotalBytes == null
-                      ? null
-                      : event.cumulativeBytesLoaded / event.expectedTotalBytes!,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      color: isSuperResolving ? Colors.amber : null,
+                      backgroundColor: context.colorScheme.surfaceContainerHigh,
+                      value: isSuperResolving
+                          ? null
+                          : hasDownloadProgress
+                          ? event!.cumulativeBytesLoaded /
+                                event.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isSuperResolving ? "AI 超分" : "加载中",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isSuperResolving
+                          ? Colors.amber
+                          : context.colorScheme.outline,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -1166,9 +1192,8 @@ class _ContinuousModeState extends State<_ContinuousMode>
           var imageKey = segment.images[localIndex];
           return ColoredBox(
             color: context.colorScheme.surface,
-            child: ComicImage(
-              filterQuality: FilterQuality.medium,
-              image: ReaderImageProvider(
+            child: _AiSuperResolutionImage(
+              provider: ReaderImageProvider(
                 imageKey,
                 reader.type.comicSource?.key,
                 reader.cid,
@@ -1200,9 +1225,8 @@ class _ContinuousModeState extends State<_ContinuousMode>
 
         return ColoredBox(
           color: context.colorScheme.surface,
-          child: ComicImage(
-            filterQuality: FilterQuality.medium,
-            image: image,
+          child: _AiSuperResolutionImage(
+            provider: image as ReaderImageProvider,
             width: width,
             height: height,
             fit: BoxFit.contain,
@@ -1787,5 +1811,81 @@ class _ProgressPainter extends CustomPainter {
         oldDelegate.value != value ||
         oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.color != color;
+  }
+}
+
+/// 先显示原图，AI 超分完成后再自动替换为超分图。
+///
+/// 内部用 [precacheImage] 后台预加载超分版 [ReaderImageProvider]，
+/// 完成后 setState 切换。超分版已在 Flutter ImageCache 中，切换无闪烁。
+/// 未开启超分时直接透传，无额外开销。
+class _AiSuperResolutionImage extends StatefulWidget {
+  const _AiSuperResolutionImage({
+    required this.provider,
+    this.width,
+    this.height,
+    this.fit,
+    this.filterQuality = FilterQuality.medium,
+    this.onInit,
+    this.onDispose,
+  });
+
+  final ReaderImageProvider provider;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final FilterQuality filterQuality;
+  final void Function(State<ComicImage>)? onInit;
+  final void Function(State<ComicImage>)? onDispose;
+
+  @override
+  State<_AiSuperResolutionImage> createState() =>
+      _AiSuperResolutionImageState();
+}
+
+class _AiSuperResolutionImageState extends State<_AiSuperResolutionImage> {
+  bool _upgraded = false;
+  bool _precacheStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_precacheStarted && widget.provider.enableAiSuperResolution) {
+      _precacheStarted = true;
+      // 后台预加载超分版，完成后切换
+      precacheImage(widget.provider, context).then((_) {
+        if (mounted && !_upgraded) {
+          setState(() => _upgraded = true);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final useSuper = _upgraded || !widget.provider.enableAiSuperResolution;
+    final ImageProvider image = useSuper
+        ? widget.provider
+        : ReaderImageProvider(
+            widget.provider.imageKey,
+            widget.provider.sourceKey,
+            widget.provider.cid,
+            widget.provider.eid,
+            widget.provider.page,
+            enableResize: widget.provider.enableResize,
+            onLoadFailed: widget.provider.onLoadFailed,
+            enableAiSuperResolution: false,
+          );
+
+    return ComicImage(
+      key: ValueKey(useSuper),
+      image: image,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      filterQuality: widget.filterQuality,
+      onInit: widget.onInit,
+      onDispose: widget.onDispose,
+    );
   }
 }

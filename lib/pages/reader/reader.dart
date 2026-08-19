@@ -269,6 +269,10 @@ class _ReaderState extends State<Reader>
       "Detect available RAM: $availableRAM, set image cache size to $maxImageCacheSize",
     );
     PaintingBinding.instance.imageCache.maximumSizeBytes = maxImageCacheSize;
+    // maximumSize 默认 1000，大内存设备增大条目数以充分利用缓存空间。
+    // 漫画每章 20-50 页，预加载 4 页，增大条目数避免频繁驱逐。
+    PaintingBinding.instance.imageCache.maximumSize =
+        availableRAM >= 4 << 30 ? 3000 : availableRAM >= 2 << 30 ? 2000 : 1000;
   }
 
   @override
@@ -281,6 +285,7 @@ class _ReaderState extends State<Reader>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     stopVolumeEvent();
     PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20;
+    PaintingBinding.instance.imageCache.maximumSize = 1000;
     disposeReaderWindow();
     // 应用接续：离开阅读器后通知鸿蒙侧不再支持流转，
     // 并清空缓存的阅读状态，主页等页面不显示接续入口。
