@@ -37,6 +37,7 @@ class NaviPane extends StatefulWidget {
     this.onPageChanged,
     required this.observer,
     required this.navigatorKey,
+    this.sidebarOnRight = false,
     super.key,
   });
 
@@ -53,6 +54,9 @@ class NaviPane extends StatefulWidget {
   final NaviObserver observer;
 
   final GlobalKey<NavigatorState> navigatorKey;
+
+  /// 大屏时侧边栏是否显示在右侧（智感握姿：右手握持时切换为 true）。
+  final bool sidebarOnRight;
 
   @override
   State<NaviPane> createState() => NaviPaneState();
@@ -82,6 +86,23 @@ class NaviPaneState extends State<NaviPane>
 
   late AnimationController controller;
 
+  /// 侧边栏方向动画：0 = 左侧（默认），1 = 右侧（右手握持）。
+  /// widget.sidebarOnRight 变化时平滑过渡，避免生硬跳变。
+  late AnimationController directionController;
+
+  /// 当前顶层页面是否为"内容页"（漫画详情页等）。
+  /// 内容页打开时隐藏侧边栏、主视图全屏；仅最外层页面保留侧边栏。
+  bool get _isContentFullscreen {
+    final routes = widget.observer.routes;
+    if (routes.length <= 1) return false;
+    final route = routes.last;
+    if (route is AppPageRoute) {
+      final label = route.label;
+      return label == 'ComicPage' || label == 'Reader';
+    }
+    return false;
+  }
+
   final _naviItemTapListeners = <NaviItemTapListener>[];
 
   void addNaviItemTapListener(NaviItemTapListener listener) {
@@ -104,6 +125,14 @@ class NaviPaneState extends State<NaviPane>
       _kBottomBarHeight + MediaQuery.of(context).padding.bottom;
 
   void onNavigatorStateChange() {
+    // 路由变化（push/pop 内容页）时延迟到下一帧重建，确保
+    // AppPageRoute.label（页面类型）已构建就绪后再判断侧边栏显示，
+    // 否则刚 push 详情页时 label 为 null 会误判为"非内容页"。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     onRebuild(context);
   }
 
@@ -131,13 +160,30 @@ class NaviPaneState extends State<NaviPane>
       upperBound: 3,
       vsync: this,
     );
+    directionController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      lowerBound: 0,
+      upperBound: 1,
+      value: widget.sidebarOnRight ? 1 : 0,
+      vsync: this,
+    );
     widget.observer.addListener(onNavigatorStateChange);
     super.initState();
   }
 
   @override
+  void didUpdateWidget(covariant NaviPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 智感握姿方向变化：平滑过渡到新的一侧
+    if (oldWidget.sidebarOnRight != widget.sidebarOnRight) {
+      directionController.animateTo(widget.sidebarOnRight ? 1 : 0);
+    }
+  }
+
+  @override
   void dispose() {
     controller.dispose();
+    directionController.dispose();
     widget.observer.removeListener(onNavigatorStateChange);
     super.dispose();
   }
@@ -191,25 +237,61 @@ class NaviPaneState extends State<NaviPane>
       },
       popGesture: App.isIOS && context.width >= changePoint,
       child: AnimatedBuilder(
-        animation: controller,
+        animation: Listenable.merge([controller, directionController]),
         builder: (context, child) {
           final value = controller.value;
-          Widget content = Stack(
-            children: [
-              Positioned(
-                left: _kFoldedSideBarWidth * ((value - 2.0).clamp(-1.0, 0.0)),
-                top: 0,
-                bottom: 0,
-                child: buildLeft(),
-              ),
-              Positioned.fill(
-                left:
-                    _kFoldedSideBarWidth * ((value - 1).clamp(0, 1)) +
-                    (_kSideBarWidth - _kFoldedSideBarWidth) *
-                        ((value - 2).clamp(0, 1)),
-                child: buildMainView(),
-              ),
-            ],
+          // 方向动画：0 = 左侧（默认），1 = 右侧（右手握持），平滑过渡
+          final d = directionController.value;
+          // 内容页（漫画详情页等）打开时隐藏侧边栏、主视图全屏，
+          // 仅最外层页面（主页/搜索等）保留侧边栏
+          final contentFullscreen = _isContentFullscreen;
+          // 侧边栏宽度（大屏展开/折叠）
+          final sidebarWidth =
+              _kFoldedSideBarWidth +
+              (_kSideBarWidth - _kFoldedSideBarWidth) *
+                  ((value - 2).clamp(0, 1));
+          // 侧边栏基准偏移：大屏 0，窄屏负值移出屏幕
+          final sidebarOffset =
+              _kFoldedSideBarWidth * ((value - 2.0).clamp(-1.0, 0.0));
+          // 内容页全屏：侧边栏完全移出屏幕
+          final effSidebarOffset =
+              contentFullscreen ? -sidebarWidth : sidebarOffset;
+          // 主视图偏移
+          final mainOffset =
+              _kFoldedSideBarWidth * ((value - 1).clamp(0, 1)) +
+              (_kSideBarWidth - _kFoldedSideBarWidth) *
+                  ((value - 2).clamp(0, 1));
+          final effMainOffset = contentFullscreen ? 0.0 : mainOffset;
+          Widget content = LayoutBuilder(
+            builder: (context, constraints) {
+              final w = constraints.maxWidth;
+              // 方向插值：d=0 侧边栏贴左，d=1 侧边栏贴右
+              final sidebarLeft = ui.lerpDouble(
+                effSidebarOffset,
+                w - sidebarWidth - effSidebarOffset,
+                d,
+              )!;
+              final mainLeft = ui.lerpDouble(effMainOffset, 0, d)!;
+              final mainRight = ui.lerpDouble(0, effMainOffset, d)!;
+              return Stack(
+                children: [
+                  Positioned(
+                    left: sidebarLeft,
+                    top: 0,
+                    bottom: 0,
+                    child: buildLeft(),
+                  ),
+                  Positioned(
+                    // 主视图左右都设置才会拉伸填满剩余区域
+                    left: mainLeft,
+                    right: mainRight,
+                    top: 0,
+                    bottom: 0,
+                    child: buildMainView(),
+                  ),
+                ],
+              );
+            },
           );
           if (sideInsets != EdgeInsets.zero) {
             content = Padding(padding: sideInsets, child: content);

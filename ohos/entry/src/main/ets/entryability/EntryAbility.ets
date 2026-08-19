@@ -14,6 +14,7 @@ import visionBase from '@hms.ai.vision.visionBase';
 import { WebviewBridge } from '../webview/WebviewBridge';
 import AbilityConstant from '@ohos.app.ability.AbilityConstant';
 import Want from '@ohos.app.ability.Want';
+import motion from '@ohos.multimodalAwareness.motion';
 
 const TAG = "EntryAbility";
 
@@ -31,6 +32,7 @@ export default class EntryAbility extends FlutterAbility {
     this.registerUrlLauncher(flutterEngine)
     this.registerAiSuperResolution(flutterEngine)
     this.registerContinuation(flutterEngine)
+    this.registerSmartGrip(flutterEngine)
   }
 
   /**
@@ -718,6 +720,53 @@ export default class EntryAbility extends FlutterAbility {
       }
     });
     Log.i(TAG, "venera/continuation channel registered");
+  }
+
+  /**
+   * 注册 venera/smart_grip channel，实现鸿蒙"智感握姿"（握持姿势感知）。
+   *
+   * 通过 @ohos.multimodalAwareness.motion 监听 holdingHandChanged
+   * （握持手变化，since 20，需要 ohos.permission.DETECT_GESTURE），
+   * 把 LEFT/RIGHT/BOTH/NOT_HELD 映射为字符串推送给 Dart 侧。Flutter
+   * 大屏布局据此把侧边栏切到左/右（右手握持切右侧）。
+   *
+   * 设备不支持（错误 801）时优雅降级：保持默认左侧布局。
+   */
+  private registerSmartGrip(flutterEngine: FlutterEngine): void {
+    const messenger = flutterEngine.dartExecutor.getBinaryMessenger();
+    const channel = new MethodChannel(messenger, 'venera/smart_grip');
+    try {
+      motion.on('holdingHandChanged', (status: motion.HoldingHandStatus) => {
+        let hand = 'unknown';
+        switch (status) {
+          case motion.HoldingHandStatus.NOT_HELD:
+            hand = 'none';
+            break;
+          case motion.HoldingHandStatus.LEFT_HAND_HELD:
+            hand = 'left';
+            break;
+          case motion.HoldingHandStatus.RIGHT_HAND_HELD:
+            hand = 'right';
+            break;
+          case motion.HoldingHandStatus.BOTH_HANDS_HELD:
+            hand = 'both';
+            break;
+          default:
+            hand = 'unknown';
+            break;
+        }
+        Log.i(TAG, "smart_grip holdingHandChanged: " + hand);
+        try {
+          channel.invokeMethod('holdingHandChanged', hand);
+        } catch (e) {
+          Log.e(TAG, "smart_grip push failed: " + JSON.stringify(e));
+        }
+      });
+      Log.i(TAG, "venera/smart_grip holdingHandChanged registered");
+    } catch (e) {
+      // 801: 设备不支持该能力，或权限/服务异常；保持默认左侧布局
+      Log.e(TAG, "smart_grip holdingHandChanged not supported: " + JSON.stringify(e));
+    }
   }
 
   /**

@@ -22,6 +22,7 @@ import 'foundation/app_page_route.dart';
 import 'foundation/appdata.dart';
 import 'foundation/continuation.dart';
 import 'foundation/ohos_compat.dart';
+import 'foundation/smart_grip.dart';
 import 'headless.dart';
 import 'init.dart';
 
@@ -92,6 +93,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // 应用接续：注册热启动接续推送处理器（鸿蒙，幂等）。
     Continuation.init();
+    // 智感握姿：注册握持姿势推送处理器（鸿蒙，幂等），大屏布局据此切换左右。
+    SmartGrip.init();
     // 延迟到首帧后执行，避免启动时网络竞争拖慢首帧渲染
     WidgetsBinding.instance.addPostFrameCallback((_) {
       checkUpdates();

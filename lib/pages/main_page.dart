@@ -7,6 +7,7 @@ import 'package:venera/utils/translations.dart';
 
 import '../components/components.dart';
 import '../foundation/app.dart';
+import '../foundation/smart_grip.dart';
 import 'explore_page.dart';
 import 'favorites/favorites_page.dart';
 import 'home_page.dart';
@@ -41,7 +42,21 @@ class _MainPageState extends State<MainPage> {
     _navigatorKey = GlobalKey();
     App.mainNavigatorKey = _navigatorKey;
     index = int.tryParse(appdata.settings['initialPage'].toString()) ?? 0;
+    // 智感握姿：右手握持时大屏侧边栏切到右侧（鸿蒙）。
+    SmartGrip.sidebarOnRight.addListener(_onGripChanged);
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    SmartGrip.sidebarOnRight.removeListener(_onGripChanged);
+    super.dispose();
+  }
+
+  void _onGripChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   final _pages = [
@@ -59,6 +74,7 @@ class _MainPageState extends State<MainPage> {
       initialPage: index,
       observer: _observer,
       navigatorKey: _navigatorKey!,
+      sidebarOnRight: SmartGrip.sidebarOnRight.value,
       paneItems: [
         PaneItemEntry(
           label: 'Home'.tl,
