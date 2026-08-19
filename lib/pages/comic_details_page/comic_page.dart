@@ -239,11 +239,15 @@ class _ComicPageState extends LoadingState<ComicPage, ComicDetails>
       final initialPage = page > 0 ? page - 1 : 0;
       final enableAiSuperResolution =
           appdata.settings['enableAiSuperResolution'] == true;
+      final readerMode = appdata.settings['readerMode'] as String? ?? 'galleryLeftToRight';
+      final limitImageWidth = appdata.settings['limitImageWidth'] == true;
       await NativeReader.open(
         images: images,
         initialPage: initialPage,
         title: title,
         enableAiSuperResolution: enableAiSuperResolution,
+        readerMode: readerMode,
+        limitImageWidth: limitImageWidth,
       );
     } catch (e) {
       Log.error("ComicPage", "native reader for local failed: $e");

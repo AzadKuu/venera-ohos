@@ -128,11 +128,15 @@ abstract mixin class _ComicPageActions {
       final initialPage = (page != null && page > 0) ? page - 1 : 0;
       final enableAiSuperResolution =
           appdata.settings['enableAiSuperResolution'] == true;
+      final readerMode = appdata.settings['readerMode'] as String? ?? 'galleryLeftToRight';
+      final limitImageWidth = appdata.settings['limitImageWidth'] == true;
       final opened = await NativeReader.open(
         images: images,
         initialPage: initialPage,
         title: comic.title,
         enableAiSuperResolution: enableAiSuperResolution,
+        readerMode: readerMode,
+        limitImageWidth: limitImageWidth,
       );
       if (!opened) {
         // 原生阅读器打开失败，fallback 到 Flutter 阅读器

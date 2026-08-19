@@ -836,6 +836,8 @@ export default class EntryAbility extends FlutterAbility {
       initialPage: number;
       title: string;
       enableAiSuperResolution: boolean;
+      readerMode: string;
+      limitImageWidth: boolean;
     }
 
     channel.setMethodCallHandler({
@@ -846,7 +848,9 @@ export default class EntryAbility extends FlutterAbility {
             const initialPage = call.argument('initialPage') as number;
             const title = call.argument('title') as string;
             const enableAiSuperResolution = call.argument('enableAiSuperResolution') as boolean;
-            Log.i(TAG, `native_reader open: ${images?.length} images, page=${initialPage}, aiSr=${enableAiSuperResolution}`);
+            const readerMode = call.argument('readerMode') as string;
+            const limitImageWidth = call.argument('limitImageWidth') as boolean;
+            Log.i(TAG, `native_reader open: ${images?.length} images, page=${initialPage}, aiSr=${enableAiSuperResolution}, mode=${readerMode}`);
             if (images == null || images.length == 0) {
               result.success(false);
               break;
@@ -857,6 +861,8 @@ export default class EntryAbility extends FlutterAbility {
                 initialPage: initialPage ?? 0,
                 title: title ?? '',
                 enableAiSuperResolution: enableAiSuperResolution ?? false,
+                readerMode: readerMode ?? 'galleryLeftToRight',
+                limitImageWidth: limitImageWidth ?? true,
               };
               router.pushUrl({
                 url: 'pages/NativeReader',

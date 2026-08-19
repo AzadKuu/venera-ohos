@@ -33,6 +33,8 @@ class NativeReader {
     int initialPage = 0,
     String title = '',
     bool enableAiSuperResolution = false,
+    String readerMode = 'galleryLeftToRight',
+    bool limitImageWidth = true,
   }) async {
     if (!App.isOhos) {
       Log.warning("NativeReader", "not available on this platform");
@@ -48,6 +50,8 @@ class NativeReader {
         'initialPage': initialPage,
         'title': title,
         'enableAiSuperResolution': enableAiSuperResolution,
+        'readerMode': readerMode,
+        'limitImageWidth': limitImageWidth,
       });
       Log.info("NativeReader", "open result: $result");
       return result ?? false;

@@ -180,11 +180,15 @@ class LocalComic with HistoryMixin implements Comic {
       final initialPage = page > 0 ? page - 1 : 0;
       final enableAiSuperResolution =
           appdata.settings['enableAiSuperResolution'] == true;
+      final readerMode = appdata.settings['readerMode'] as String? ?? 'galleryLeftToRight';
+      final limitImageWidth = appdata.settings['limitImageWidth'] == true;
       await NativeReader.open(
         images: images,
         initialPage: initialPage,
         title: title,
         enableAiSuperResolution: enableAiSuperResolution,
+        readerMode: readerMode,
+        limitImageWidth: limitImageWidth,
       );
     } catch (e) {
       Log.error("LocalComic", "native reader failed: $e");
