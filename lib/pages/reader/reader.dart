@@ -227,12 +227,19 @@ class _ReaderState extends State<Reader>
     )) {
       handleVolumeEvent();
     }
-    setImageCacheSize();
+    // 延迟到首帧后执行，避免在页面过渡动画（300ms SlideTransition）期间
+    // 与渲染管线争抢资源导致卡顿。setImageCacheSize 触发 method channel
+    // 通信，Continuation.setReaderActive 触发鸿蒙侧 setMissionContinueState
+    // （系统更新任务卡片/流转按钮），两者都不应在动画帧内执行。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setImageCacheSize();
+      // 应用接续：进入阅读器后通知鸿蒙侧该页面支持流转，onContinue 才允许接续。
+      Continuation.setReaderActive(true);
+    });
     Future.delayed(const Duration(milliseconds: 200), () {
       LocalFavoritesManager().onRead(cid, type);
     });
-    // 应用接续：进入阅读器后通知鸿蒙侧该页面支持流转，onContinue 才允许接续。
-    Continuation.setReaderActive(true);
     super.initState();
   }
 
@@ -252,8 +259,20 @@ class _ReaderState extends State<Reader>
   }
 
   void setImageCacheSize() async {
-    var availableRAM = await MemoryInfo.getFreePhysicalMemorySize();
-    if (availableRAM == null) return;
+    int? availableRAM;
+    try {
+      availableRAM = await MemoryInfo.getFreePhysicalMemorySize();
+    } catch (e) {
+      // flutter_memory_info 在鸿蒙上未实现，抛 MissingPluginException。
+      // 降级：使用保守默认值，不阻塞阅读器初始化。
+      Log.warning("Reader", "getFreePhysicalMemorySize unavailable: $e");
+    }
+    if (availableRAM == null) {
+      // 降级默认：200MB 缓存、1000 条目（与 dispose 中重置值一致量级）。
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20;
+      PaintingBinding.instance.imageCache.maximumSize = 1000;
+      return;
+    }
     int maxImageCacheSize;
     if (availableRAM < 1 << 30) {
       maxImageCacheSize = 100 << 20;

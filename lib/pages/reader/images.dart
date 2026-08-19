@@ -45,6 +45,28 @@ class _ReaderImagesState extends State<_ReaderImages> {
     context.readerScaffold.update();
   }
 
+  /// 如果页面过渡动画（SlideTransition 300ms）仍在进行中，
+  /// 等待动画完成后再执行 fn，避免在过渡期间触发从
+  /// CircularProgressIndicator 到 _GalleryMode/_ContinuousMode
+  /// 的重型 widget 重建导致卡顿。
+  void _runAfterTransition(VoidCallback fn) {
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    final animation = route?.animation;
+    if (animation != null && !animation.isCompleted) {
+      void listener(AnimationStatus status) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
+          animation.removeStatusListener(listener);
+          if (mounted) fn();
+        }
+      }
+      animation.addStatusListener(listener);
+    } else {
+      fn();
+    }
+  }
+
   /// Handle jumping to last page when _jumpToLastPageOnLoad is true
   void _handleJumpToLastPage() {
     if (reader._jumpToLastPageOnLoad) {
@@ -70,7 +92,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
           reader.chapter,
         );
         if (!mounted) return;
-        setState(() {
+        _runAfterTransition(() => setState(() {
           reader.images = images;
           reader.isLoading = false;
           inProgress = false;
@@ -78,7 +100,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
           Future.microtask(() {
             reader.updateHistory();
           });
-        });
+        }));
       } catch (e) {
         if (!mounted) return;
         setState(() {
@@ -100,7 +122,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
           var cacheList = (jsonDecode(utf8.decode(cacheData)) as List)
               .cast<String>();
           if (!mounted) return;
-          setState(() {
+          _runAfterTransition(() => setState(() {
             reader.images = cacheList;
             reader.isLoading = false;
             inProgress = false;
@@ -108,7 +130,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
             Future.microtask(() {
               reader.updateHistory();
             });
-          });
+          }));
           context.readerScaffold.update();
           return;
         } catch (_) {
@@ -130,7 +152,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
       } else {
         // Save to cache in background
         _savePagesCache(cacheKey, res.data);
-        setState(() {
+        _runAfterTransition(() => setState(() {
           reader.images = res.data;
           reader.isLoading = false;
           inProgress = false;
@@ -138,7 +160,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
           Future.microtask(() {
             reader.updateHistory();
           });
-        });
+        }));
       }
     }
     if (!mounted) return;
@@ -1846,6 +1868,7 @@ class _AiSuperResolutionImage extends StatefulWidget {
 class _AiSuperResolutionImageState extends State<_AiSuperResolutionImage> {
   bool _upgraded = false;
   bool _precacheStarted = false;
+  bool _showBadge = false;
 
   @override
   void didChangeDependencies() {
@@ -1855,7 +1878,16 @@ class _AiSuperResolutionImageState extends State<_AiSuperResolutionImage> {
       // 后台预加载超分版，完成后切换
       precacheImage(widget.provider, context).then((_) {
         if (mounted && !_upgraded) {
-          setState(() => _upgraded = true);
+          setState(() {
+            _upgraded = true;
+            _showBadge = true;
+          });
+          // 3 秒后淡出标记
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() => _showBadge = false);
+            }
+          });
         }
       });
     }
@@ -1877,15 +1909,50 @@ class _AiSuperResolutionImageState extends State<_AiSuperResolutionImage> {
             enableAiSuperResolution: false,
           );
 
-    return ComicImage(
-      key: ValueKey(useSuper),
-      image: image,
-      width: widget.width,
-      height: widget.height,
-      fit: widget.fit,
-      filterQuality: widget.filterQuality,
-      onInit: widget.onInit,
-      onDispose: widget.onDispose,
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        ComicImage(
+          key: ValueKey(useSuper),
+          image: image,
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          filterQuality: widget.filterQuality,
+          onInit: widget.onInit,
+          onDispose: widget.onDispose,
+        ),
+        // 超分完成角标：右上角 "AI 超分"，3 秒后淡出
+        if (_showBadge)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: AnimatedOpacity(
+              opacity: _showBadge ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 500),
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    "超分完成",
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
