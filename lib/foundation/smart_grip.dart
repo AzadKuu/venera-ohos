@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:venera/foundation/app.dart';
+import 'package:venera/foundation/appdata.dart';
 import 'package:venera/foundation/log.dart';
 
 /// 鸿蒙"智感握姿"（智能感知握持姿势）Flutter 侧封装。
@@ -12,7 +13,9 @@ import 'package:venera/foundation/log.dart';
 /// 用途：大屏（折叠屏/平板）状态下，最外层界面（主页/搜索等）默认在
 /// 左侧；检测到右手握持时自动切到右侧，方便单手操作。
 ///
-/// 只在鸿蒙（App.isOhos）生效，其他平台所有方法均为 no-op。
+/// 受用户设置开关 `enableSmartGrip` 控制：关闭时忽略鸿蒙侧推送的握持
+/// 事件，并把侧边栏方向重置为默认（左侧）。只在鸿蒙（App.isOhos）
+/// 生效，其他平台所有方法均为 no-op。
 class SmartGrip {
   static const MethodChannel _channel = MethodChannel('venera/smart_grip');
 
@@ -22,12 +25,18 @@ class SmartGrip {
   /// 非鸿蒙平台恒为 false。UI 侧监听此值触发重建。
   static final ValueNotifier<bool> sidebarOnRight = ValueNotifier(false);
 
+  /// 智感握姿是否启用：鸿蒙平台且用户开关 `enableSmartGrip` 打开。
+  static bool get _enabled =>
+      App.isOhos && appdata.settings['enableSmartGrip'] == true;
+
   /// 注册鸿蒙侧握持状态推送处理器（应在 App 启动早期调用一次，幂等）。
   static void init() {
     if (!App.isOhos || _handlerRegistered) return;
     _handlerRegistered = true;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'holdingHandChanged') {
+        // 开关关闭时忽略握持事件，保持当前方向不受握姿影响。
+        if (!_enabled) return null;
         final hand = call.arguments as String?;
         Log.info("SmartGrip", "holdingHandChanged: $hand");
         // 只有明确为单手（left/right）才切换方向；双手/未握持/未知
@@ -40,5 +49,13 @@ class SmartGrip {
       }
       return null;
     });
+  }
+
+  /// 设置开关变化时调用：关闭则恢复默认侧边栏方向（左侧）。
+  /// 由设置页的开关 onChanged 触发，使界面立即回到默认布局。
+  static void onToggleChanged() {
+    if (!_enabled) {
+      sidebarOnRight.value = false;
+    }
   }
 }

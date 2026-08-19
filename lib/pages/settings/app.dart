@@ -217,6 +217,15 @@ class _AppSettingsState extends State<AppSettings> {
             '3': "Categories Page".tl,
           },
         ).toSliver(),
+        if (App.isOhos)
+          _SwitchSetting(
+            title: "Smart Grip".tl,
+            subtitle: "Switch sidebar side by holding hand".tl,
+            settingKey: 'enableSmartGrip',
+            onChanged: () {
+              SmartGrip.onToggleChanged();
+            },
+          ).toSliver(),
         if (!App.isLinux)
           _SwitchSetting(
             title: "Authorization Required".tl,

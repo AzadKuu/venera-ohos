@@ -122,6 +122,7 @@ class Appdata with Init {
     "imageFavoritesDisplayType",
     "commentFontSize",
     "enableAiSuperResolution",
+    "enableSmartGrip",
   ];
 
   static const _archiveSyncFields = ["backupWebdav", "backupWebdavPath"];
@@ -295,6 +296,8 @@ class Settings with ChangeNotifier {
         true, // show chart in image favorites card on home page
     'enableAiSuperResolution':
         false, // HarmonyOS on-device AI super resolution in reader
+    'enableSmartGrip':
+        true, // HarmonyOS smart grip: switch sidebar side by holding hand
   };
 
   operator [](String key) {
