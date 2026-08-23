@@ -16,9 +16,14 @@ import 'package:venera/network/proxy.dart';
 /// 鸿蒙上改用 Dart 标准库 `dart:io` 的 [HttpClient] 实现，功能对齐
 /// [RHttpAdapter] 的关键能力：代理、连接超时、TLS 校验开关。
 class OhosHttpAdapter implements HttpClientAdapter {
-  OhosHttpAdapter({this.enableProxy = true});
+  OhosHttpAdapter({this.enableProxy = true, this.ignoreBadCertificate});
 
   final bool enableProxy;
+
+  /// When non-null, overrides the global `ignoreBadCertificate` setting for
+  /// TLS certificate verification. This allows callers (e.g. WebDAV) to opt
+  /// out of certificate validation independently of the global toggle.
+  final bool? ignoreBadCertificate;
 
   String? _proxy;
 
@@ -28,8 +33,10 @@ class OhosHttpAdapter implements HttpClientAdapter {
 
   /// 校验证书是否放行。
   bool _allowCertificate(X509Certificate? cert, String host, int port) {
-    // ignoreBadCertificate == true 时跳过校验
-    return appdata.settings['ignoreBadCertificate'] == true;
+    // 显式传入的 ignoreBadCertificate 优先，否则回退到全局设置
+    final ignore = ignoreBadCertificate ??
+        (appdata.settings['ignoreBadCertificate'] == true);
+    return ignore;
   }
 
   @override

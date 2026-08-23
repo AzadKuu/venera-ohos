@@ -459,6 +459,7 @@ class _WebdavSettingState extends State<_WebdavSetting> {
   String pass = "";
 
   bool autoSync = true;
+  bool ignoreSslCert = false;
 
   bool isTesting = false;
   bool upload = true;
@@ -466,6 +467,7 @@ class _WebdavSettingState extends State<_WebdavSetting> {
   @override
   void initState() {
     super.initState();
+    ignoreSslCert = appdata.settings['webdavIgnoreSslCert'] == true;
     if (appdata.settings['webdav'] is! List) {
       appdata.settings['webdav'] = [];
     }
@@ -528,6 +530,26 @@ class _WebdavSettingState extends State<_WebdavSetting> {
               title: Text("Auto Sync Data".tl),
               contentPadding: EdgeInsets.zero,
               trailing: Switch(value: autoSync, onChanged: onAutoSyncChanged),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: Icon(Icons.https),
+              title: Text("Ignore SSL Certificate".tl),
+              subtitle: Text(
+                "Skip TLS certificate validation. Enable for self-signed or invalid certificates."
+                    .tl,
+              ),
+              contentPadding: EdgeInsets.zero,
+              trailing: Switch(
+                value: ignoreSslCert,
+                onChanged: (v) {
+                  setState(() {
+                    ignoreSslCert = v;
+                    appdata.settings['webdavIgnoreSslCert'] = v;
+                    appdata.saveData();
+                  });
+                },
+              ),
             ),
             const SizedBox(height: 12),
             RadioGroup<bool>(
@@ -685,6 +707,7 @@ class _BackupWebdavSettingState extends State<_BackupWebdavSetting> {
   late final TextEditingController _passController;
   late final TextEditingController _remotePathController;
   bool syncEnabled = false;
+  bool ignoreSslCert = false;
   bool isTesting = false;
 
   @override
@@ -696,6 +719,7 @@ class _BackupWebdavSettingState extends State<_BackupWebdavSetting> {
     _passController = TextEditingController(text: config.pass);
     _remotePathController = TextEditingController(text: config.remotePath);
     syncEnabled = appdata.settings['backupWebdavSyncEnabled'] == true;
+    ignoreSslCert = appdata.settings['backupWebdavIgnoreSslCert'] == true;
   }
 
   @override
@@ -786,6 +810,26 @@ class _BackupWebdavSettingState extends State<_BackupWebdavSetting> {
                 },
               ),
               contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: Icon(Icons.https),
+              title: Text("Ignore SSL Certificate".tl),
+              subtitle: Text(
+                "Skip TLS certificate validation. Enable for self-signed or invalid certificates."
+                    .tl,
+              ),
+              contentPadding: EdgeInsets.zero,
+              trailing: Switch(
+                value: ignoreSslCert,
+                onChanged: (v) {
+                  setState(() {
+                    ignoreSslCert = v;
+                    appdata.settings['backupWebdavIgnoreSslCert'] = v;
+                    appdata.saveData();
+                  });
+                },
+              ),
             ),
             const SizedBox(height: 16),
             Row(

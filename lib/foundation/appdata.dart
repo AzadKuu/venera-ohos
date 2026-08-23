@@ -114,8 +114,10 @@ class Appdata with Init {
     "customImageProcessing",
     "webdav",
     "webdavProxyEnabled",
+    "webdavIgnoreSslCert",
     "backupWebdav",
     "backupWebdavPath",
+    "backupWebdavIgnoreSslCert",
     "disableSyncFields",
     "deviceId",
     "lastSyncTime",
@@ -126,7 +128,11 @@ class Appdata with Init {
     "useNativeReaderForLocal",
   ];
 
-  static const _archiveSyncFields = ["backupWebdav", "backupWebdavPath"];
+  static const _archiveSyncFields = [
+    "backupWebdav",
+    "backupWebdavPath",
+    "backupWebdavIgnoreSslCert",
+  ];
 
   /// Sync data from another device
   void syncData(Map<String, dynamic> data) {
@@ -251,9 +257,11 @@ class Settings with ChangeNotifier {
     'limitImageWidth': true,
     'webdav': [], // empty means not configured
     'webdavProxyEnabled': true,
+    'webdavIgnoreSslCert': false,
     'backupWebdav': [], // empty means not configured
     'backupWebdavPath': '/venera_backup/',
     'backupWebdavSyncEnabled': false,
+    'backupWebdavIgnoreSslCert': false,
     "disableSyncFields": "", // TODO: remove, UI entry has been deleted
     'dataVersion': 0,
     'lastSyncTime': 0,

@@ -183,10 +183,17 @@ class AppDio with DioMixin {
 class RHttpAdapter implements HttpClientAdapter {
   final bool enableProxy;
 
-  RHttpAdapter({this.enableProxy = true});
+  /// When non-null, overrides the global `ignoreBadCertificate` setting for
+  /// TLS certificate verification. This allows callers (e.g. WebDAV) to opt
+  /// out of certificate validation independently of the global toggle.
+  final bool? ignoreBadCertificate;
+
+  RHttpAdapter({this.enableProxy = true, this.ignoreBadCertificate});
 
   Future<rhttp.ClientSettings> get settings async {
     var proxy = enableProxy ? await getProxy() : null;
+    final ignoreCert = ignoreBadCertificate ??
+        (appdata.settings['ignoreBadCertificate'] == true);
 
     return rhttp.ClientSettings(
       proxySettings: proxy == null
@@ -202,7 +209,7 @@ class RHttpAdapter implements HttpClientAdapter {
       dnsSettings: rhttp.DnsSettings.static(overrides: _getOverrides()),
       tlsSettings: rhttp.TlsSettings(
         sni: appdata.settings['sni'] != false,
-        verifyCertificates: appdata.settings['ignoreBadCertificate'] != true,
+        verifyCertificates: !ignoreCert,
       ),
     );
   }

@@ -92,9 +92,13 @@ class WebDavConnectionTester {
       adapter: App.isOhos
           ? OhosHttpAdapter(
               enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              ignoreBadCertificate:
+                  appdata.settings['webdavIgnoreSslCert'] == true,
             )
           : RHttpAdapter(
               enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              ignoreBadCertificate:
+                  appdata.settings['webdavIgnoreSslCert'] == true,
             ),
     );
     await client.readDir('/');

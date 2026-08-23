@@ -131,9 +131,13 @@ class _WebDavComicBackupOps implements ComicBackupWebDavOps {
       adapter: App.isOhos
           ? OhosHttpAdapter(
               enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              ignoreBadCertificate:
+                  appdata.settings['backupWebdavIgnoreSslCert'] == true,
             )
           : RHttpAdapter(
               enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+              ignoreBadCertificate:
+                  appdata.settings['backupWebdavIgnoreSslCert'] == true,
             ),
     );
   }
