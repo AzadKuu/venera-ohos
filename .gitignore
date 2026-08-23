@@ -56,3 +56,9 @@ add_translation.py
 docs/superpowers/
 .worktrees/
 harmony_skills/
+
+# Temp scripts
+.tmp_*.ps1
+
+# Gradle cache
+**/.gradle/
