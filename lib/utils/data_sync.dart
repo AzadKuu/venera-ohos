@@ -354,9 +354,13 @@ class DataSync with ChangeNotifier {
         adapter: App.isOhos
             ? OhosHttpAdapter(
                 enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+                ignoreBadCertificate:
+                    appdata.settings['webdavIgnoreSslCert'] == true,
               )
             : RHttpAdapter(
                 enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+                ignoreBadCertificate:
+                    appdata.settings['webdavIgnoreSslCert'] == true,
               ),
       );
 
@@ -450,9 +454,13 @@ class DataSync with ChangeNotifier {
         adapter: App.isOhos
             ? OhosHttpAdapter(
                 enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+                ignoreBadCertificate:
+                    appdata.settings['webdavIgnoreSslCert'] == true,
               )
             : RHttpAdapter(
                 enableProxy: appdata.settings['webdavProxyEnabled'] != false,
+                ignoreBadCertificate:
+                    appdata.settings['webdavIgnoreSslCert'] == true,
               ),
       );
 
